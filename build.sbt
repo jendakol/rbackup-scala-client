@@ -6,13 +6,20 @@ mappings in Universal ++= directory(baseDirectory.value / "public")
 
 name := "rbackup-client"
 
-version := "1.1"
+version := "0.1"
 
 scalaVersion := "2.12.6"
 
 lazy val `rbackup-client` = (project in file(".")).enablePlugins(PlayScala)
 
 libraryDependencies ++= Seq(guice, filters, jdbc, cacheApi, ws, specs2 % Test)
+
+libraryDependencies ++= Seq(
+  "io.monix" % "monix_2.12" % "3.0.0-RC1",
+  "net.codingwell" %% "scala-guice" % "4.1.1",
+  "com.dripower" %% "play-circe" % "2609.1",
+  "com.typesafe.scala-logging" % "scala-logging_2.12" % "3.9.0"
+)
 
 // Play framework hooks for development
 PlayKeys.playRunHooks += WebpackServer(file("./front"))
