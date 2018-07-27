@@ -31,9 +31,13 @@
     "webpack-dev-server": "^2.4.5"
   },
   "dependencies": {
+    "axios": "^0.18.0",
     "bootstrap": "^4.0.0-alpha.6",
-    "vue": "^2.3.4",
+    "i": "^0.3.6",
     "isomorphic-ws": "^4.0.1",
+    "npm": "^6.2.0",
+    "vue": "^2.3.4",
+    "vue-jstree": "^2.1.6",
     "ws": "^6.0.0"
   }
 }

@@ -16,6 +16,7 @@ libraryDependencies ++= Seq(guice, filters, jdbc, cacheApi, ws, specs2 % Test)
 
 libraryDependencies ++= Seq(
   "io.monix" % "monix_2.12" % "3.0.0-RC1",
+  "com.github.pathikrit" % "better-files_2.12" % "3.6.0",
   "net.codingwell" %% "scala-guice" % "4.1.1",
   "com.dripower" %% "play-circe" % "2609.1",
   "com.typesafe.scala-logging" % "scala-logging_2.12" % "3.9.0"

@@ -1,63 +1,91 @@
 <template>
-    <div id="app">
+    <div id="this">
         <div>
             <p v-if="isConnected">
                 We're connected to the server!<br>
                 Message from server: "{{socketMessage}}"<br>
                 <button @click="pingServer()">Ping Server</button>
+                <button @click="saveFileTree()">Send file tree</button>
             </p>
             <p v-else>
                 Waiting for connection to the server...<br>
             </p>
         </div>
+
+        <v-jstree :data="fileTreeData" :async="loadData" show-checkbox multiple allow-batch whole-row></v-jstree>
     </div>
 
 </template>
 
 <script>
+    const HostUrl = "localhost:9000";
+
     const WebSocket = require('isomorphic-ws');
 
-    let APP;
+    import VJstree from 'vue-jstree';
+    import axios from 'axios';
 
     export default {
+        components: {
+            VJstree
+        },
         data() {
             return {
                 ws: null,
                 isConnected: false,
                 socketMessage: '',
-                connectionCheck: null
+                connectionCheck: null,
+                fileTreeData: [],
+                loadData: (oriNode, resolve) => {
+                    let path = oriNode.data.value;
+
+                    // axios.post('http://localhost:9000/ajax-api', {name: "dirList", data: {path: path != undefined ? path + "" : ""}})
+                    this.ajax("dirList", {path: path != undefined ? path + "" : ""})
+                        .then(response => {
+                            resolve(response)
+                        })
+
+                },
             }
         },
         created: function () {
-            APP = this;
+            this.ws = new WebSocket("ws://" + HostUrl + "/ws-api");
 
-            APP.ws = new WebSocket('ws://localhost:9000/ws-api');
-
-            APP.connectionCheck = setInterval(function () {
-                if (APP.ws.readyState === 1) {
-                    APP.isConnected = true;
-                    clearInterval(APP.connectionCheck)
+            this.connectionCheck = setInterval(() => {
+                if (this.ws.readyState === 1) {
+                    this.isConnected = true;
+                    clearInterval(this.connectionCheck)
                 }
             }, 1000);
 
-            APP.ws.onopen = function () {
-                APP.isConnected = true;
+            this.ws.onopen = () => {
+                this.isConnected = true;
             };
-            APP.ws.onclose = function () {
-                APP.isConnected = false;
+            this.ws.onclose = () => {
+                this.isConnected = false;
             };
-            APP.ws.onerror = function (err) {
-                APP.isConnected = false;
+            this.ws.onerror = (err) => {
+                this.isConnected = false;
                 console.log("WS error: " + err);
             };
-            APP.ws.onmessage = function (data) {
-                APP.socketMessage = JSON.stringify(JSON.parse(data.data));
-                console.log("WS received: " + data.data);
+            this.ws.onmessage = (data) => {
+                this.socketMessage = JSON.stringify(JSON.parse(data.data));
             };
         },
         methods: {
+            ajax(name, data) {
+                return axios.post("http://" + HostUrl + "/ajax-api", {name: name, data: data})
+                    .then(t => {
+                        return JSON.parse(t.data)
+                    }).catch(error => {
+                        console.log(error);
+                    })
+            },
             pingServer() {
-                APP.ws.send(JSON.stringify({name: "ping"}));
+                this.ws.send(JSON.stringify({name: "ping"}));
+            },
+            saveFileTree() {
+                this.ajax("saveFileTree", this.fileTreeData)
             }
         }
     }
