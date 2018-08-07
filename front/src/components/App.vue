@@ -13,9 +13,18 @@
             <p v-else>
                 Waiting for connection to the server...<br>
             </p>
+
         </div>
 
-        <v-jstree :data="fileTreeData" :async="loadData" show-checkbox multiple allow-batch whole-row></v-jstree>
+        <v-jstree :data="fileTreeData" :item-events="itemEvents" :async="loadData" show-checkbox multiple allow-batch whole-row></v-jstree>
+
+
+        <vue-context ref="menu">
+            <ul>
+                <li @click="uploadManually">Upload now</li>
+                <li @click="alert('')">Option 2</li>
+            </ul>
+        </vue-context>
     </div>
 
 </template>
@@ -27,10 +36,12 @@
 
     import VJstree from 'vue-jstree';
     import axios from 'axios';
+    import {VueContext} from 'vue-context';
 
     export default {
         components: {
-            VJstree
+            VJstree,
+            VueContext
         },
         data() {
             return {
@@ -50,6 +61,14 @@
                         })
 
                 },
+                rightClicked: null,
+                itemEvents: {
+                    contextmenu: (a, item, event) => {
+                        this.rightClicked = item;
+                        this.$refs.menu.open(event);
+                        event.preventDefault()
+                    }
+                }
             }
         },
         created: function () {
@@ -91,7 +110,7 @@
                 })
             },
             register() {
-                this.ajax("register", {username: "bb2", password: "ahoj"}).then(t => {
+                this.ajax("register", {username: "bb22", password: "ahoj"}).then(t => {
                     if (t.success) {
                         this.cloudResponseMessage = "Account registered: " + t.account_id
                     } else {
@@ -100,7 +119,7 @@
                 })
             },
             login() {
-                this.ajax("login", {username: "bb2", password: "ahoj"}).then(t => {
+                this.ajax("login", {username: "bb22", password: "ahoj"}).then(t => {
                     if (t.success) {
                         this.cloudResponseMessage = "Login successful!"
                     } else {
@@ -108,11 +127,23 @@
                     }
                 })
             },
+            uploadManually() {
+                let path = this.rightClicked.value;
+
+                // alert("Uploading " + path);
+
+                this.ajax("uploadManually", {path: path}).then(t => {
+                    if (t.success) {
+                        this.cloudResponseMessage = "Upload successful!"
+                    } else {
+                        this.cloudResponseMessage = "Upload NOT successful, because: " + t.reason
+                    }
+                })
+            },
             saveFileTree() {
                 this.ajax("saveFileTree", this.fileTreeData)
-            }
-
-        }
+            },
+        },
     }
 </script>
 

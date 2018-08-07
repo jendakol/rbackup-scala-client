@@ -1,7 +1,13 @@
 package lib
 
+import java.time.LocalDateTime
+
 // https://jendakol.github.io/rbackup/server.html
 object serverapi {
+
+  case class RemoteFile(id: Long, deviceId: String, originalName: String, versions: List[FileVersion])
+
+  case class FileVersion(version: Long, size: Long, hash: String, created: LocalDateTime)
 
   // registration
   sealed trait RegistrationResponse
@@ -25,6 +31,14 @@ object serverapi {
 
     case object Failed extends LoginResponse
 
+  }
+
+  // upload
+  sealed trait UploadResponse
+
+  object UploadResponse {
+    case class Uploaded(file: RemoteFile) extends UploadResponse
+    case object Sha256Mismatch extends UploadResponse
   }
 
 }
