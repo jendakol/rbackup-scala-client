@@ -3,9 +3,12 @@
         <div>
             <p v-if="isConnected">
                 We're connected to the server!<br>
-                Message from server: "{{socketMessage}}"<br>
+                Message from WS server: "{{socketMessage}}"<br>
+                Message from RBackup server: "{{cloudResponseMessage}}"<br>
                 <button @click="pingServer()">Ping Server</button>
-                <button @click="saveFileTree()">Send file tree</button>
+                <button @click="register()">Register</button>
+                <button @click="login()">Login</button>
+                <!--<button @click="saveFileTree()">Send file tree</button>-->
             </p>
             <p v-else>
                 Waiting for connection to the server...<br>
@@ -34,6 +37,7 @@
                 ws: null,
                 isConnected: false,
                 socketMessage: '',
+                cloudResponseMessage: '',
                 connectionCheck: null,
                 fileTreeData: [],
                 loadData: (oriNode, resolve) => {
@@ -76,17 +80,38 @@
             ajax(name, data) {
                 return axios.post("http://" + HostUrl + "/ajax-api", {name: name, data: data})
                     .then(t => {
-                        return JSON.parse(t.data)
+                        return t.data;
                     }).catch(error => {
                         console.log(error);
                     })
             },
             pingServer() {
-                this.ws.send(JSON.stringify({name: "ping"}));
+                this.ajax("ping").then(t => {
+                    this.cloudResponseMessage = t.serverResponse
+                })
+            },
+            register() {
+                this.ajax("register", {username: "bb2", password: "ahoj"}).then(t => {
+                    if (t.success) {
+                        this.cloudResponseMessage = "Account registered: " + t.account_id
+                    } else {
+                        this.cloudResponseMessage = "Account NOT registered, because: " + t.reason
+                    }
+                })
+            },
+            login() {
+                this.ajax("login", {username: "bb2", password: "ahoj"}).then(t => {
+                    if (t.success) {
+                        this.cloudResponseMessage = "Login successful!"
+                    } else {
+                        this.cloudResponseMessage = "Login was NOT successful"
+                    }
+                })
             },
             saveFileTree() {
                 this.ajax("saveFileTree", this.fileTreeData)
             }
+
         }
     }
 </script>

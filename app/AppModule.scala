@@ -3,7 +3,9 @@ import java.util.concurrent.Executors
 
 import com.google.inject.{AbstractModule, Binder, Key}
 import com.typesafe.config._
+import lib.CloudConnector
 import monix.execution.Scheduler
+import monix.execution.schedulers.SchedulerService
 import net.codingwell.scalaguice.ScalaModule
 import utils.{AllowedApiOrigins, ConfigProperty, ConfigPropertyImpl}
 
@@ -15,9 +17,15 @@ class AppModule extends AbstractModule with ScalaModule {
   override def configure(): Unit = {
     bindConfig(config.root(), "")(binder())
 
+    implicit val scheduler: SchedulerService = Scheduler(Executors.newCachedThreadPool()) // TODO
+
     bind[AllowedApiOrigins].toInstance(AllowedApiOrigins(config.getStringList("allowedWsApiOrigins").asScala))
 
-    bind[Scheduler].toInstance(Scheduler(Executors.newCachedThreadPool())) // TODO
+    bind[CloudConnector].toInstance {
+      CloudConnector.fromConfig(config.getConfig("cloudConnector"))
+    }
+
+    bind[Scheduler].toInstance(scheduler)
   }
 
   // based on: http://vastdevblog.vast.com/blog/2012/06/16/creating-named-guice-bindings-for-typesafe-config-properties/

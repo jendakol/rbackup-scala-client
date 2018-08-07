@@ -2,6 +2,11 @@ import com.typesafe.sbt.packager.MappingsHelper._
 
 import scala.sys.process.Process
 
+lazy val Versions = new {
+  val monix = "3.0.0-RC1"
+  val http4s = "0.18.15"
+}
+
 mappings in Universal ++= directory(baseDirectory.value / "public")
 
 name := "rbackup-client"
@@ -15,10 +20,15 @@ lazy val `rbackup-client` = (project in file(".")).enablePlugins(PlayScala)
 libraryDependencies ++= Seq(guice, filters, jdbc, cacheApi, ws, specs2 % Test)
 
 libraryDependencies ++= Seq(
-  "io.monix" % "monix_2.12" % "3.0.0-RC1",
+  "org.http4s" %% "http4s-dsl" % Versions.http4s,
+  "org.http4s" %% "http4s-blaze-client" % Versions.http4s,
+  "io.monix" % "monix_2.12" % Versions.monix,
   "com.github.pathikrit" % "better-files_2.12" % "3.6.0",
+  "com.github.pureconfig" %% "pureconfig" % "0.9.1",
+  "com.github.pureconfig" %% "pureconfig-http4s" % "0.9.1",
   "net.codingwell" %% "scala-guice" % "4.1.1",
   "com.dripower" %% "play-circe" % "2609.1",
+  "io.circe" %% "circe-generic-extras" % "0.9.3",
   "com.typesafe.scala-logging" % "scala-logging_2.12" % "3.9.0"
 )
 

@@ -3,46 +3,61 @@ package controllers
 import akka.actor.ActorSystem
 import akka.stream.Materializer
 import com.typesafe.scalalogging.StrictLogging
+import io.circe.Json
 import io.circe.generic.auto._
 import io.circe.syntax._
 import javax.inject.{Inject, Singleton}
-import lib.CommandExecutor
+import lib.{Command, CommandExecutor}
+import monix.execution.Scheduler
 import play.api.libs.circe.Circe
-import play.api.mvc.{AbstractController, ControllerComponents}
+import play.api.mvc.{AbstractController, Action, ControllerComponents}
 
-import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.util.Try
+import scala.concurrent.Future
 
 @Singleton
 class AjaxApiController @Inject()(cc: ControllerComponents, commandExecutor: CommandExecutor)(implicit system: ActorSystem,
                                                                                               mat: Materializer,
-                                                                                              ec: ExecutionContext)
+                                                                                              sch: Scheduler)
     extends AbstractController(cc)
-    with ApiController
     with Circe
     with StrictLogging {
 
-  def exec = Action.async(circe.tolerantJson[JsonCommand]) { req =>
+  def exec: Action[JsonCommand] = Action.async(circe.tolerantJson[JsonCommand]) { req =>
     val jsonCommand = req.body
 
     logger.debug(s"Received AJAX request: $jsonCommand")
 
     decodeCommand(jsonCommand) match {
       case Right(command) =>
-        val promise = Promise[String]()
-
-        commandExecutor.execute(command, json => {
-          val response = json.noSpaces
-          logger.debug(s"Sending AJAX response: $response")
-
-          Try {
-            promise.complete(Try(json.asJson.noSpaces))
+        commandExecutor
+          .execute(command)
+          .value
+          .map {
+            case Right(json) => Ok(json.noSpaces).as("application/json")
+            case Left(err) => BadRequest(ErrorResponse(err).asJson.noSpaces)
           }
-        })
-
-        promise.future.map(Ok(_).as("application/json"))
+          .runAsync
 
       case Left(err) => Future.successful(BadRequest(err.asJson.noSpaces))
     }
   }
+
+  private def decodeCommand(jsonCommand: JsonCommand): Either[ErrorResponse, Command] = {
+    import jsonCommand._
+
+    Command(name, data) match {
+      case Some(command) => Right(command)
+      case None => Left(ErrorResponse("Command not found or is missing some data"))
+    }
+  }
 }
+
+case class ErrorResponse(error: String)
+
+object ErrorResponse {
+  def apply(t: Throwable): ErrorResponse = {
+    ErrorResponse(s"${t.getClass.getName}: ${t.getMessage}")
+  }
+}
+
+case class JsonCommand(name: String, data: Option[Json])
