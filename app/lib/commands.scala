@@ -24,4 +24,11 @@ case class FileFromTree(selected: Boolean, loading: Boolean, value: String, chil
   def flatten: Seq[FileFromTree] = {
     (this +: children.flatMap(_.flatten)).filterNot(_.loading)
   }
+
+  def toIterable: Iterable[FileFromTree] = new Iterable[FileFromTree] {
+    override def iterator: Iterator[FileFromTree] = FileFromTree.this.flatten.iterator
+  }
+
 }
+
+//po aktualizaci stromu zresetovat veškeré zpracovávání, zrušit watchery - nastavit vše znovu
