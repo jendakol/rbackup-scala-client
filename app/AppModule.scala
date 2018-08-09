@@ -3,7 +3,7 @@ import java.util.concurrent.Executors
 
 import com.google.inject.{AbstractModule, Binder, Key}
 import com.typesafe.config._
-import lib.CloudConnector
+import lib.{CloudConnector, CloudFilesList, CloudFilesRegistry}
 import monix.execution.Scheduler
 import monix.execution.schedulers.SchedulerService
 import net.codingwell.scalaguice.ScalaModule
@@ -24,6 +24,12 @@ class AppModule extends AbstractModule with ScalaModule {
     bind[CloudConnector].toInstance {
       CloudConnector.fromConfig(config.getConfig("cloudConnector"))
     }
+
+    bind[CloudFilesRegistry].toInstance(
+      CloudFilesRegistry(
+        cloudFilesList = CloudFilesList(Seq.empty) // TODO load from DB
+      )
+    )
 
     bind[Scheduler].toInstance(scheduler)
   }

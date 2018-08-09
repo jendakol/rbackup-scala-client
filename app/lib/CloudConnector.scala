@@ -8,7 +8,8 @@ import io.circe.Json
 import io.circe.generic.extras.auto._
 import lib.App._
 import lib.CirceImplicits._
-import lib.serverapi.{LoginResponse, RegistrationResponse, RemoteFile, UploadResponse}
+import lib.serverapi.ListFilesResponse.FilesList
+import lib.serverapi._
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.http4s
@@ -26,7 +27,7 @@ class CloudConnector(rootUri: Uri, httpClient: Client[Task], chunkSize: Int) ext
   def registerAccount(username: String, password: String): Result[RegistrationResponse] = {
     logger.debug(s"Creating registration for username $username")
 
-    exec(Method.GET, "account/register", Map("username" -> username, "password" -> password)) {
+    exec(plainRequest(Method.GET, "account/register", Map("username" -> username, "password" -> password))) {
       case ServerResponse(Status.Created, Some(json)) => json.as[RegistrationResponse.Created].toResult
       case ServerResponse(Status.Conflict, _) => pureResult(RegistrationResponse.AlreadyExists)
     }
@@ -35,43 +36,55 @@ class CloudConnector(rootUri: Uri, httpClient: Client[Task], chunkSize: Int) ext
   def login(deviceId: String, username: String, password: String): Result[LoginResponse] = {
     logger.debug(s"Logging device $deviceId with username $username")
 
-    exec(Method.GET, "account/login", Map("device_id" -> deviceId, "username" -> username, "password" -> password)) {
+    exec(plainRequest(Method.GET, "account/login", Map("device_id" -> deviceId, "username" -> username, "password" -> password))) {
       case ServerResponse(Status.Created, Some(json)) => json.as[LoginResponse.SessionCreated].toResult
       case ServerResponse(Status.Ok, Some(json)) => json.as[LoginResponse.SessionRecovered].toResult
       case ServerResponse(Status.Unauthorized, _) => pureResult(LoginResponse.Failed)
     }
   }
 
-  def upload(file: File): Result[UploadResponse] = {
+  def upload(file: File)(implicit sessionId: SessionId): Result[UploadResponse] = {
     logger.debug(s"Uploading $file")
 
-    implicit val sessionId: SessionId = SessionId("db011aa8-634a-48aa-8370-0ad29a0be517")
-
-    stream("upload", file, Map("file_path" -> "filring")) {
+    stream("upload", file, Map("file_path" -> file.path.toAbsolutePath.toString)) {
       case ServerResponse(Status.Ok, Some(json)) => json.as[RemoteFile].toResult.map(UploadResponse.Uploaded)
       case ServerResponse(Status.PreconditionFailed, _) => pureResult(UploadResponse.Sha256Mismatch)
+    }
+  }
+
+  def listFiles(specificDevice: Option[String])(implicit sessionId: SessionId): Result[ListFilesResponse] = {
+    logger.debug(s"Getting files list for device $specificDevice")
+
+    exec(authenticatedRequest(Method.GET, "list/files", specificDevice.map("device_id" -> _).toMap)) {
+      case ServerResponse(Status.Ok, Some(json)) => json.as[Seq[RemoteFile]].toResult.map(FilesList)
+      case ServerResponse(Status.NotFound, _) =>
+        pureResult(ListFilesResponse.DeviceNotFound {
+          specificDevice.getOrElse(throw new IllegalStateException("Must not be empty"))
+        })
     }
   }
 
   def status: Result[String] = {
     logger.debug("Requesting status from server")
 
-    exec(Method.GET, "status") {
+    exec(plainRequest(Method.GET, "status")) {
       case ServerResponse(Status.Created, Some(json)) => json.hcursor.get[String]("status").toResult
     }
   }
 
-  private def exec[A](method: Method, path: String, queryParams: Map[String, String] = Map.empty)(
-      pf: PartialFunction[ServerResponse, Result[A]]): Result[A] = {
-
+  private def plainRequest[A](method: Method, path: String, queryParams: Map[String, String] = Map.empty): Request[Task] = {
     val uri = path.split("/").foldLeft(rootUri)(_ / _).setQueryParams(queryParams.mapValues(Seq(_)))
 
-    val request = Request[Task](
+    Request[Task](
       method,
       uri
     )
+  }
 
-    exec(request)(pf)
+  private def authenticatedRequest[A](method: Method, path: String, queryParams: Map[String, String] = Map.empty)(
+      implicit sessionId: SessionId): Request[Task] = {
+    plainRequest(method, path, queryParams)
+      .putHeaders(http4s.Header("RBackup-Session-Pass", sessionId.value))
   }
 
   private def stream[A](path: String, file: File, queryParams: Map[String, String] = Map.empty)(

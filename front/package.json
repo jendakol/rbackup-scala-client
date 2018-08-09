@@ -35,10 +35,11 @@
     "bootstrap": "^4.0.0-alpha.6",
     "i": "^0.3.6",
     "isomorphic-ws": "^4.0.1",
+    "jspath": "^0.4.0",
     "npm": "^6.2.0",
     "vue": "^2.3.4",
+    "vue-context": "latest",
     "vue-jstree": "^2.1.6",
-    "ws": "^6.0.0",
-    "vue-context": "latest"
+    "ws": "^6.0.0"
   }
 }

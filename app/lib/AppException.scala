@@ -12,4 +12,6 @@ object AppException {
   case class InvalidResponseException(status: Int, body: String, desc: String, cause: Throwable = null)
       extends AppException(s"Invalid response with status $status: $desc", cause)
 
+  case class WsException(desc: String, cause: Throwable = null) extends AppException(desc, cause)
+
 }

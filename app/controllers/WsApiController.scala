@@ -1,21 +1,31 @@
 package controllers
 
+import java.util.concurrent.atomic.AtomicReference
+
 import akka.actor._
 import akka.stream.Materializer
+import cats.data.EitherT
+import cats.syntax.either._
 import com.typesafe.scalalogging.StrictLogging
+import io.circe.Json
+import io.circe.generic.extras.auto._
+import io.circe.syntax._
 import javax.inject._
-import lib.CommandExecutor
+import lib.AppException.WsException
+import lib.CirceImplicits._
+import monix.eval.Task
 import play.api.libs.circe.Circe
 import play.api.libs.streams.ActorFlow
 import play.api.mvc._
 import utils.AllowedApiOrigins
 
 import scala.concurrent.Future
+import scala.util.Try
 
 @Singleton
-class WsApiController @Inject()(cc: ControllerComponents,
-                                commandExecutor: CommandExecutor,
-                                protected override val allowedOrigins: AllowedApiOrigins)(implicit system: ActorSystem, mat: Materializer)
+class WsApiController @Inject()(cc: ControllerComponents, protected override val allowedOrigins: AllowedApiOrigins)(
+    implicit system: ActorSystem,
+    mat: Materializer)
     extends AbstractController(cc)
     with Circe
     with SameOriginCheck
@@ -39,26 +49,34 @@ class WsApiController @Inject()(cc: ControllerComponents,
       }
   }
 
-  class WebSocketApiActor(out: ActorRef) extends Actor with StrictLogging {
+  private val out: AtomicReference[Option[ActorRef]] = new AtomicReference[Option[ActorRef]](None)
+
+  def send(wsMessage: WsMessage): lib.App.Result[Unit] = {
+    EitherT {
+      Task {
+        out.get() match {
+          case Some(o) =>
+            Try {
+              o ! wsMessage.asJson.noSpaces
+            }.toEither
+              .leftMap(WsException("Could not send WS message", _))
+
+          case None => Left(WsException("Could not send WS message - connection not available"))
+        }
+      }
+    }
+  }
+
+  private class WebSocketApiActor(out: ActorRef) extends Actor with StrictLogging {
     def receive: Actor.Receive = {
       case content: String =>
         logger.debug(s"Received WS message: $content")
-      // TODO
+        // TODO
 
-//        decodeCommand(content) match {
-//          case Right(command) =>
-//            commandExecutor.execute(command, json => {
-//              val response = json.noSpaces
-//              logger.debug(s"Sending WS message: $response")
-//
-//              Try {
-//                out ! response
-//              }
-//            })
-//
-//          case Left(err) => out ! err.asJson.noSpaces
-//        }
+        WsApiController.this.out.set(Option(out))
     }
   }
 
 }
+
+case class WsMessage(`type`: String, data: Json)

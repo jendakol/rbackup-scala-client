@@ -22,7 +22,7 @@
         <vue-context ref="menu">
             <ul>
                 <li @click="uploadManually">Upload now</li>
-                <li @click="alert('')">Option 2</li>
+                <li @click="change">Change</li>
             </ul>
         </vue-context>
     </div>
@@ -37,6 +37,7 @@
     import VJstree from 'vue-jstree';
     import axios from 'axios';
     import {VueContext} from 'vue-context';
+    import JSPath from 'jspath';
 
     export default {
         components: {
@@ -77,7 +78,8 @@
             this.connectionCheck = setInterval(() => {
                 if (this.ws.readyState === 1) {
                     this.isConnected = true;
-                    clearInterval(this.connectionCheck)
+                    clearInterval(this.connectionCheck);
+                    this.ws.send(JSON.stringify({name: "init"}));
                 }
             }, 1000);
 
@@ -105,9 +107,11 @@
                     })
             },
             pingServer() {
-                this.ajax("ping").then(t => {
-                    this.cloudResponseMessage = t.serverResponse
-                })
+                // this.ajax("ping").then(t => {
+                //     this.cloudResponseMessage = t.serverResponse
+                // })
+
+                // this.selectTreeNode('/home/testing/examples.desktop').text = "ahoj";
             },
             register() {
                 this.ajax("register", {username: "bb22", password: "ahoj"}).then(t => {
@@ -139,6 +143,15 @@
                         this.cloudResponseMessage = "Upload NOT successful, because: " + t.reason
                     }
                 })
+            },
+            selectTreeNode(path) {
+                return JSPath.apply("..{.value === '"+path+"'}", this.fileTreeData)[0]
+            },
+            change() {
+              // this.rightClicked.text = "ahoj";
+
+
+                JSPath.apply("..{.value === '/home/testing/examples.desktop'}", this.fileTreeData)[0].text = "ahoj";
             },
             saveFileTree() {
                 this.ajax("saveFileTree", this.fileTreeData)

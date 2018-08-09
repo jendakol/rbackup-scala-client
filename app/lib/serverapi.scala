@@ -5,7 +5,7 @@ import java.time.LocalDateTime
 // https://jendakol.github.io/rbackup/server.html
 object serverapi {
 
-  case class RemoteFile(id: Long, deviceId: String, originalName: String, versions: List[FileVersion])
+  case class RemoteFile(id: Long, deviceId: String, originalName: String, versions: Vector[FileVersion])
 
   case class FileVersion(version: Long, size: Long, hash: String, created: LocalDateTime)
 
@@ -39,6 +39,14 @@ object serverapi {
   object UploadResponse {
     case class Uploaded(file: RemoteFile) extends UploadResponse
     case object Sha256Mismatch extends UploadResponse
+  }
+
+  // file list
+  sealed trait ListFilesResponse
+
+  object ListFilesResponse {
+    case class FilesList(files: Seq[RemoteFile]) extends ListFilesResponse
+    case class DeviceNotFound(deviceId: String) extends ListFilesResponse
   }
 
 }
