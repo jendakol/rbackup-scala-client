@@ -57,6 +57,8 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
         out.get() match {
           case Some(o) =>
             Try {
+              logger.debug(s"Sending WS message: $wsMessage")
+
               o ! wsMessage.asJson.noSpaces
             }.toEither
               .leftMap(WsException("Could not send WS message", _))

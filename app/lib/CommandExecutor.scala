@@ -1,13 +1,19 @@
 package lib
 
 import better.files.File
+import cats.data.EitherT
 import com.typesafe.scalalogging.StrictLogging
-import controllers.{WsApiController, WsMessage}
+import controllers.WsApiController
 import io.circe.Json
+import io.circe.generic.extras.auto._
 import io.circe.parser._
+import io.circe.syntax._
 import javax.inject.{Inject, Singleton}
 import lib.App._
+import lib.CirceImplicits._
+import lib.clientapi.FileTreeNode
 import lib.serverapi.UploadResponse
+import monix.eval.Task
 import monix.execution.Scheduler
 import utils.ConfigProperty
 
@@ -34,67 +40,55 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       cloudConnector.login(deviceId, username, password).map(LoginCommand.toResponse)
 
     case UploadManually(path) =>
-      cloudConnector
-        .upload(File(path))
-        .flatMap { r =>
-          // TODO
-          wsApiController
-            .send(controllers.WsMessage("test", parseSafe("""{ "success": true }""")))
-            .map(_ => r)
-        }
-        .map {
-          case UploadResponse.Uploaded(remoteFile) =>
-            cloudFilesRegistry.updateFile(remoteFile)
-
-            parseSafe("""{ "success": true }""")
+      for {
+        r <- cloudConnector.upload(File(path))
+        _ <- updateFilesRegistry(r)
+      } yield {
+        r match {
+          case UploadResponse.Uploaded(_) => parseSafe("""{ "success": true }""")
           case UploadResponse.Sha256Mismatch => parseSafe("""{ "success": false, "reason": "SHA-256 mismatch" }""")
         }
+      }
 
     case DirListCommand(path) =>
       val filesList = cloudFilesRegistry.filesList
 
-      val cont = if (path != "") {
+      val nodes = if (path != "") {
         File(path).children
           .filter(_.isReadable)
           .map { file =>
-            val n = file.name
-            val isFile = file.isRegularFile
-            val versions = filesList.versions(file)
-
-            s"""{
-               |"text": "${if (n != "") n else "/"}, versions ${versions.toSeq.flatten.map(_.version).mkString("[", ", ", "]")}",
-               |"value": "${file.path.toAbsolutePath}",
-               |"isLeaf": $isFile,
-               |"icon": "fas ${if (isFile) "fa-file" else "fa-folder"} icon-state-default"
-               |}
-               |""".stripMargin
+            if (file.isRegularFile) {
+              val versions = filesList.versions(file)
+              FileTreeNode.RegularFile(file, versions)
+            } else {
+              FileTreeNode.Directory(file)
+            }
           }
-          .mkString("[", ",", "]")
+          .toSeq
       } else {
-
         File.roots
           .filter(_.isReadable)
-          .map { f =>
-            val n = f.name
-
-            s"""{
-               |"text": "${if (n != "") n else "/"}",
-               |"value": "${f.path.toAbsolutePath}",
-               |"isLeaf": false,
-               |"icon": "fas fa-folder icon-state-default"
-               |}""".stripMargin
-          }
-          .mkString("[", ",", "]")
+          .map(FileTreeNode.Directory(_))
+          .toSeq
       }
-
-      parse(cont).toResult
-
-    case SaveFileTreeCommand(files) =>
-      logger.debug(files.head.flatten.mkString("", "\n", ""))
 
       pureResult {
-        Json.Null
+        nodes.map(_.toJson).asJson
       }
 
+    //    case SaveFileTreeCommand(files) =>
+    ////            logger.debug(better.files.head.flatten.mkString("", "\n", ""))
+    //
+    //      pureResult {
+    //        Json.Null
+    //      }
+
+  }
+
+  private def updateFilesRegistry(r: UploadResponse): EitherT[Task, AppException, _ >: CloudFilesList with Unit] = {
+    r match {
+      case UploadResponse.Uploaded(remoteFile) => cloudFilesRegistry.updateFile(remoteFile)
+      case _ => pureResult(())
+    }
   }
 }

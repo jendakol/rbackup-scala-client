@@ -13,6 +13,8 @@
         <appender-ref ref="STDOUT"/>
     </root>
 
+    <logger name="org.http4s" level="INFO"/>
+
     <logger name="ch.qos.logback" level="OFF" additivity="false"/>
 
     <statusListener class="ch.qos.logback.core.status.NopStatusListener"/>

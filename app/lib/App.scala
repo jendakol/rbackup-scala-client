@@ -16,7 +16,9 @@ object App {
     EitherT[Task, AppException, A](Task.now(Left(e)))
   }
 
-  def parseSafe(str: String): Json = io.circe.parser.parse(str).getOrElse(throw new RuntimeException("BUG :-("))
+  def parseSafe(str: String): Json = io.circe.parser.parse(str).getOrElse(throw new RuntimeException(s"BUG :-( - could not parse\n$str"))
+
+  final val DateTimeFormatter = java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm:ss")
 
   implicit class CirceOps[A](val e: Either[io.circe.Error, A]) {
     def toResult[AA >: A]: Result[AA] = EitherT.fromEither[Task](e.leftMap(AppException.ParsingFailure("", _)))

@@ -11,7 +11,7 @@ object Command {
   def apply(name: String, data: Option[Json]): Option[Command] = name match {
     case "ping" => Some(PingCommand)
     case "dirList" => data.flatMap(_.as[DirListCommand].toOption)
-    case "saveFileTree" => data.flatMap(_.as[Seq[FileFromTree]].toOption).map(SaveFileTreeCommand)
+//    case "saveFileTree" => data.flatMap(_.as[Seq[FileFromTree]].toOption).map(SaveFileTreeCommand)
     case "register" => data.flatMap(_.as[RegisterCommand].toOption)
     case "login" => data.flatMap(_.as[LoginCommand].toOption)
     case "uploadManually" => data.flatMap(_.as[UploadManually].toOption)
@@ -23,7 +23,7 @@ case object PingCommand extends Command
 
 case class DirListCommand(path: String) extends Command
 
-case class SaveFileTreeCommand(files: Seq[FileFromTree]) extends Command
+//case class SaveFileTreeCommand(files: Seq[FileFromTree]) extends Command
 
 case class RegisterCommand(username: String, password: String) extends Command
 
@@ -61,13 +61,42 @@ object UploadCommand {
   }
 }
 
-case class FileFromTree(selected: Boolean, loading: Boolean, value: String, children: Seq[FileFromTree]) {
-  def flatten: Seq[FileFromTree] = {
-    (this +: children.flatMap(_.flatten)).filterNot(_.loading)
-  }
-
-  def toIterable: Iterable[FileFromTree] = new Iterable[FileFromTree] {
-    override def iterator: Iterator[FileFromTree] = FileFromTree.this.flatten.iterator
-  }
-
-}
+//trait FileTreeNode {
+//  def value: String
+//  def text: String
+//  def icon: String
+//  def isLeaf: Boolean
+//  def children: Option[Seq[FileTreeNode]]
+//
+//  def toJson: Json
+//}
+//
+//case class FileVersionFromTree(value: String, text: String) extends FileTreeNode {
+//
+//  override def icon: String = "fas fa-file"
+//
+//  override def isLeaf: Boolean = true
+//
+//  override def children: Option[Seq[FileTreeNode]] = None
+//
+//  override def toJson: Json = parseSafe(s"""
+//                                           |{"icon": "$icon", "isLeaf": $isLeaf, "value": "$value", "text": "$text"}
+//    """.stripMargin)
+//}
+//
+//case class FileFromTree(selected: Boolean,
+////                        loading: Boolean,
+//                        value: String,
+//                        text: String,
+//                        isLeaf: Boolean,
+//                        children: Option[Seq[FileFromTree]],
+//                        icon: String) {
+////  def flatten: Seq[FileFromTree] = {
+////    (this +: children.flatMap(_.flatten)).filterNot(_.loading)
+////  }
+////
+////  def toIterable: Iterable[FileFromTree] = new Iterable[FileFromTree] {
+////    override def iterator: Iterator[FileFromTree] = FileFromTree.this.flatten.iterator
+////  }
+//
+//}

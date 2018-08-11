@@ -5,7 +5,6 @@
                 We're connected to the server!<br>
                 Message from WS server: "{{socketMessage}}"<br>
                 Message from RBackup server: "{{cloudResponseMessage}}"<br>
-                <button @click="pingServer()">Ping Server</button>
                 <button @click="register()">Register</button>
                 <button @click="login()">Login</button>
                 <!--<button @click="saveFileTree()">Send file tree</button>-->
@@ -19,10 +18,19 @@
         <v-jstree :data="fileTreeData" :item-events="itemEvents" :async="loadData" show-checkbox multiple allow-batch whole-row></v-jstree>
 
 
-        <vue-context ref="menu">
+        <vue-context ref="fileMenu">
             <ul>
-                <li @click="uploadManually">Upload now</li>
-                <li @click="change">Change</li>
+                <li @click="uploadManually">Upload file now</li>
+            </ul>
+        </vue-context>
+        <vue-context ref="dirMenu">
+            <ul>
+                <li @click="uploadManually">Upload dir now</li>
+            </ul>
+        </vue-context>
+        <vue-context ref="versionMenu">
+            <ul>
+                <li @click="alert()">Download this version</li>
             </ul>
         </vue-context>
     </div>
@@ -66,7 +74,15 @@
                 itemEvents: {
                     contextmenu: (a, item, event) => {
                         this.rightClicked = item;
-                        this.$refs.menu.open(event);
+
+                        if (item.isVersion) {
+                            this.$refs.versionMenu.open(event);
+                        } else if (item.isFile) {
+                            this.$refs.fileMenu.open(event);
+                        } else if (item.isDir) {
+                            this.$refs.dirMenu.open(event);
+                        } else console.log("It's weird - not version nor dir nor file");
+
                         event.preventDefault()
                     }
                 }
@@ -94,7 +110,7 @@
                 console.log("WS error: " + err);
             };
             this.ws.onmessage = (data) => {
-                this.socketMessage = JSON.stringify(JSON.parse(data.data));
+                this.receiveWs(JSON.parse(data.data));
             };
         },
         methods: {
@@ -105,13 +121,6 @@
                     }).catch(error => {
                         console.log(error);
                     })
-            },
-            pingServer() {
-                // this.ajax("ping").then(t => {
-                //     this.cloudResponseMessage = t.serverResponse
-                // })
-
-                // this.selectTreeNode('/home/testing/examples.desktop').text = "ahoj";
             },
             register() {
                 this.ajax("register", {username: "bb22", password: "ahoj"}).then(t => {
@@ -144,17 +153,22 @@
                     }
                 })
             },
+            receiveWs(message) {
+                switch (message.type) {
+                    case "fileTreeUpdate": {
+                        let data = message.data;
+                        let node = this.selectTreeNode(data.path);
+
+                        if (node != undefined) {
+                            node.children = data.versions;
+                            node.isLeaf = false;
+                        }
+                    }
+                        break;
+                }
+            },
             selectTreeNode(path) {
-                return JSPath.apply("..{.value === '"+path+"'}", this.fileTreeData)[0]
-            },
-            change() {
-              // this.rightClicked.text = "ahoj";
-
-
-                JSPath.apply("..{.value === '/home/testing/examples.desktop'}", this.fileTreeData)[0].text = "ahoj";
-            },
-            saveFileTree() {
-                this.ajax("saveFileTree", this.fileTreeData)
+                return JSPath.apply("..{.value === '" + path + "'}", this.fileTreeData)[0]
             },
         },
     }

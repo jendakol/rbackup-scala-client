@@ -2,19 +2,33 @@ package lib
 
 import java.util.concurrent.atomic.AtomicReference
 
+import controllers.WsApiController
+import io.circe.Json
+import io.circe.generic.extras.auto._
+import javax.inject.Inject
 import lib.App._
+import lib.CirceImplicits._
+import lib.clientapi.FileTreeNode.FileVersion
 import lib.serverapi.RemoteFile
 
-class CloudFilesRegistry(cloudFilesList: AtomicReference[CloudFilesList]) {
+class CloudFilesRegistry @Inject()(wsApiController: WsApiController) {
 
   private val lock = new Object
+
+  private val cloudFilesList: AtomicReference[CloudFilesList] = new AtomicReference(CloudFilesList(Nil))
 
   // TODO connect to DB
 
   def updateFile(remoteFile: RemoteFile): Result[CloudFilesList] = lock.synchronized {
-    pureResult {
-      cloudFilesList.updateAndGet(_.update(remoteFile))
-    }
+    val newList = cloudFilesList.updateAndGet(_.update(remoteFile))
+
+    wsApiController
+      .send(
+        controllers.WsMessage(
+          "fileTreeUpdate",
+          FileTreeUpdate(remoteFile.originalName, remoteFile.versions.map(FileVersion(_))).asJson
+        ))
+      .map(_ => newList)
   }
 
   def updateFilesList(cloudFilesList: CloudFilesList): Result[CloudFilesList] = lock.synchronized {
@@ -25,6 +39,8 @@ class CloudFilesRegistry(cloudFilesList: AtomicReference[CloudFilesList]) {
   def filesList: CloudFilesList = cloudFilesList.get()
 }
 
-object CloudFilesRegistry {
-  def apply(cloudFilesList: CloudFilesList): CloudFilesRegistry = new CloudFilesRegistry(new AtomicReference(cloudFilesList))
+private case class FileTreeUpdate(path: String, versions: Seq[FileVersion]) {
+  def asJson: Json = {
+    parseSafe(s"""{"path": "$path", "versions": ${versions.map(_.toJson).mkString("[", ", ", "]")}}""")
+  }
 }

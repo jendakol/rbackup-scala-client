@@ -25,12 +25,6 @@ class AppModule extends AbstractModule with ScalaModule {
       CloudConnector.fromConfig(config.getConfig("cloudConnector"))
     }
 
-    bind[CloudFilesRegistry].toInstance(
-      CloudFilesRegistry(
-        cloudFilesList = CloudFilesList(Seq.empty) // TODO load from DB
-      )
-    )
-
     bind[Scheduler].toInstance(scheduler)
   }
 

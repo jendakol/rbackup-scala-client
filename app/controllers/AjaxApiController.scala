@@ -3,9 +3,10 @@ package controllers
 import akka.actor.ActorSystem
 import akka.stream.Materializer
 import com.typesafe.scalalogging.StrictLogging
-import io.circe.Json
+import controllers.AjaxApiController._
 import io.circe.generic.auto._
 import io.circe.syntax._
+import io.circe.{Json, Printer}
 import javax.inject.{Inject, Singleton}
 import lib.{Command, CommandExecutor}
 import monix.execution.Scheduler
@@ -33,12 +34,18 @@ class AjaxApiController @Inject()(cc: ControllerComponents, commandExecutor: Com
           .execute(command)
           .value
           .map {
-            case Right(json) => Ok(json.noSpaces).as("application/json")
-            case Left(err) => BadRequest(ErrorResponse(err).asJson.noSpaces)
+            case Right(json) =>
+              Ok {
+                json.pretty(JsonPrinter)
+              }.as("application/json")
+
+            case Left(err) =>
+              logger.info("Error while executing the command", err)
+              BadRequest(ErrorResponse(err).asJson.pretty(JsonPrinter))
           }
           .runAsync
 
-      case Left(err) => Future.successful(BadRequest(err.asJson.noSpaces))
+      case Left(err) => Future.successful(BadRequest(err.asJson.pretty(JsonPrinter)))
     }
   }
 
@@ -50,6 +57,10 @@ class AjaxApiController @Inject()(cc: ControllerComponents, commandExecutor: Com
       case None => Left(ErrorResponse("Command not found or is missing some data"))
     }
   }
+}
+
+object AjaxApiController {
+  final val JsonPrinter: Printer = Printer.noSpaces.copy(dropNullValues = true)
 }
 
 case class ErrorResponse(error: String)
