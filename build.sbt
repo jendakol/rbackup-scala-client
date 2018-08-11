@@ -24,12 +24,14 @@ libraryDependencies ++= Seq(
   "org.http4s" %% "http4s-blaze-client" % Versions.http4s,
   "io.monix" % "monix_2.12" % Versions.monix,
   "com.github.pathikrit" % "better-files_2.12" % "3.6.0",
+  "commons-io" % "commons-io" % "2.6",
   "com.github.pureconfig" %% "pureconfig" % "0.9.1",
   "com.github.pureconfig" %% "pureconfig-http4s" % "0.9.1",
   "net.codingwell" %% "scala-guice" % "4.1.1",
   "com.dripower" %% "play-circe" % "2609.1",
   "io.circe" %% "circe-generic-extras" % "0.9.3",
-  "com.typesafe.scala-logging" % "scala-logging_2.12" % "3.9.0"
+  "com.typesafe.scala-logging" % "scala-logging_2.12" % "3.9.0",
+  "org.scalatest" % "scalatest_2.12" % "3.0.5" % "test"
 )
 
 // Play framework hooks for development
