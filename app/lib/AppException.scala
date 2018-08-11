@@ -1,5 +1,7 @@
 package lib
 
+import better.files.File
+
 sealed abstract class AppException(msg: String, cause: Throwable = null) extends Exception(msg, cause)
 
 object AppException {
@@ -13,5 +15,9 @@ object AppException {
       extends AppException(s"Invalid response with status $status: $desc", cause)
 
   case class WsException(desc: String, cause: Throwable = null) extends AppException(desc, cause)
+
+  case class ServerNotResponding(cause: Throwable = null) extends AppException(s"Server not responding", cause)
+
+  case class AccessDenied(file: File, cause: Throwable = null) extends AppException(s"Access to '$file' was denied", cause)
 
 }

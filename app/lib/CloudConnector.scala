@@ -1,5 +1,9 @@
 package lib
 
+import java.io.ByteArrayInputStream
+import java.nio.file.AccessDeniedException
+import java.util.concurrent.TimeoutException
+
 import better.files.File
 import cats.data.EitherT
 import com.typesafe.config.{Config, ConfigFactory}
@@ -7,6 +11,7 @@ import com.typesafe.scalalogging.StrictLogging
 import io.circe.Json
 import io.circe.generic.extras.auto._
 import lib.App._
+import lib.AppException.ServerNotResponding
 import lib.CirceImplicits._
 import lib.serverapi.ListFilesResponse.FilesList
 import lib.serverapi._
@@ -15,8 +20,9 @@ import monix.execution.Scheduler
 import org.http4s
 import org.http4s.client.Client
 import org.http4s.client.blaze.{BlazeClientConfig, Http1Client}
+import org.http4s.headers.`Content-Length`
 import org.http4s.multipart._
-import org.http4s.{Method, Request, Status, Uri}
+import org.http4s.{Method, Request, Response, Status, Uri}
 import pureconfig.modules.http4s.uriReader
 import pureconfig.{CamelCase, ConfigFieldMapping, ProductHint}
 
@@ -50,6 +56,19 @@ class CloudConnector(rootUri: Uri, httpClient: Client[Task], chunkSize: Int) ext
       case ServerResponse(Status.Ok, Some(json)) => json.as[RemoteFile].toResult.map(UploadResponse.Uploaded)
       case ServerResponse(Status.PreconditionFailed, _) => pureResult(UploadResponse.Sha256Mismatch)
     }
+  }
+
+  def download(fileVersion: RemoteFileVersion, dest: File)(implicit sessionId: SessionId): Result[DownloadResponse] = EitherT {
+    logger.debug(s"Downloading file $fileVersion")
+
+    httpClient
+      .fetch(authenticatedRequest(Method.GET, "download", Map("file_version_id" -> fileVersion.version.toString))) {
+        case resp if resp.status == Status.Ok => receiveStreamedFile(fileVersion, dest, resp)
+        case resp if resp.status == Status.NotFound => Task.now(Right(DownloadResponse.FileVersionNotFound(fileVersion)))
+      }
+      .onErrorRecover {
+        case e: TimeoutException => Left(ServerNotResponding(e))
+      }
   }
 
   def listFiles(specificDevice: Option[String])(implicit sessionId: SessionId): Result[ListFilesResponse] = {
@@ -114,41 +133,100 @@ class CloudConnector(rootUri: Uri, httpClient: Client[Task], chunkSize: Int) ext
   }
 
   private def exec[A](request: Request[Task])(pf: PartialFunction[ServerResponse, Result[A]]): Result[A] = EitherT {
-
     logger.debug(s"Cloud request: $request")
 
     httpClient.fetch(request) { resp =>
       logger.debug(s"Cloud response: $resp")
 
-      resp.bodyAsText.compile.last.flatMap { str =>
-        logger.debug(s"Cloud response body: $str")
+      resp.bodyAsText.compile.toList
+        .map(parts => if (parts.isEmpty) None else Some(parts.mkString))
+        .flatMap { str =>
+          logger.debug(s"Cloud response body: $str")
 
-        val jsonResult = str.map(io.circe.parser.parse) match {
-          case Some(Right(json)) => pureResult(Some(json))
-          case None => pureResult(None)
-          case Some(Left(err)) =>
-            failedResult {
-              AppException.InvalidResponseException(
-                resp.status.code,
-                str.toString,
-                "Invalid JSON in body",
-                AppException.ParsingFailure(str.toString, err)
+          val jsonResult = str.map(io.circe.parser.parse) match {
+            case Some(Right(json)) => pureResult(Some(json))
+            case None => pureResult(None)
+            case Some(Left(err)) =>
+              failedResult {
+                AppException.InvalidResponseException(
+                  resp.status.code,
+                  str.toString,
+                  "Invalid JSON in body",
+                  AppException.ParsingFailure(str.toString, err)
+                )
+              }
+          }
+
+          jsonResult
+            .flatMap[AppException, A] { json =>
+              val serverResponse = ServerResponse(resp.status, json)
+
+              pf.applyOrElse(
+                serverResponse,
+                (_: ServerResponse) => {
+                  failedResult(AppException.InvalidResponseException(resp.status.code, str.toString, "Unexpected status or content"))
+                }
               )
             }
+            .value
         }
+    }
+  }
 
-        jsonResult
-          .flatMap[AppException, A] { json =>
-            val serverResponse = ServerResponse(resp.status, json)
+  private def receiveStreamedFile(fileVersion: RemoteFileVersion,
+                                  dest: File,
+                                  resp: Response[Task]): Task[Either[AppException, DownloadResponse]] = {
+    if (!dest.isReadable || !dest.isWriteable) {
+      logger.debug(s"File $dest is not readable or writeable!")
+      Task.now(Left(AppException.AccessDenied(dest)))
+    } else {
+      `Content-Length`.from(resp.headers) match {
+        case Some(clh) =>
+          val fileCopier = new FileCopier
 
-            pf.applyOrElse(
-              serverResponse,
-              (_: ServerResponse) => {
-                failedResult(AppException.InvalidResponseException(resp.status.code, str.toString, "Unexpected status or content"))
-              }
-            )
-          }
-          .value
+          Task {
+            if (dest.exists) dest.delete()
+            dest.newOutputStream()
+          }.flatMap { fileOs =>
+              resp.body.chunks
+                .map { bytes =>
+                  val bis = new ByteArrayInputStream(bytes.toArray)
+                  val copied = fileCopier.copy(bis, fileOs)
+                  bis.close()
+                  copied
+                }
+                .compile
+                .toVector
+                .map { chunksSizes =>
+                  val transferred = chunksSizes.sum
+
+                  fileOs.close() // all data has been transferred
+
+                  if (clh.length != transferred) {
+                    Left(AppException
+                      .InvalidResponseException(resp.status.code, "-stream-", s"Expected ${clh.length} B but got $transferred B"))
+                  } else {
+                    val transferredSha = fileCopier.finalSha256
+
+                    if (transferredSha != fileVersion.hash) {
+                      Left(
+                        AppException
+                          .InvalidResponseException(resp.status.code,
+                                                    "-stream-",
+                                                    s"Expected SHA256 ${fileVersion.hash} but got $transferredSha"))
+                    } else {
+                      Right(DownloadResponse.Downloaded(dest, fileVersion))
+                    }
+                  }
+                }
+            }
+            .onErrorRecover {
+              case e: AccessDeniedException =>
+                logger.debug(s"Error while accessing file $dest", e)
+                Left(AppException.AccessDenied(dest, e))
+            }
+
+        case None => Task.now(Left(AppException.InvalidResponseException(resp.status.code, "-stream-", "Missing Content-Length header")))
       }
     }
   }

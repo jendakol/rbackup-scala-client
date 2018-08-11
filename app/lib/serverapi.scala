@@ -2,12 +2,14 @@ package lib
 
 import java.time.LocalDateTime
 
+import better.files.File
+
 // https://jendakol.github.io/rbackup/server.html
 object serverapi {
 
-  case class RemoteFile(id: Long, deviceId: String, originalName: String, versions: Vector[FileVersion])
+  case class RemoteFile(id: Long, deviceId: String, originalName: String, versions: Vector[RemoteFileVersion])
 
-  case class FileVersion(version: Long, size: Long, hash: String, created: LocalDateTime)
+  case class RemoteFileVersion(version: Long, size: Long, hash: Sha256, created: LocalDateTime)
 
   // registration
   sealed trait RegistrationResponse
@@ -47,6 +49,14 @@ object serverapi {
   object ListFilesResponse {
     case class FilesList(files: Seq[RemoteFile]) extends ListFilesResponse
     case class DeviceNotFound(deviceId: String) extends ListFilesResponse
+  }
+
+  // download
+  sealed trait DownloadResponse
+
+  object DownloadResponse {
+    case class Downloaded(file: File, fileVersion: RemoteFileVersion) extends DownloadResponse
+    case class FileVersionNotFound(fileVersion: RemoteFileVersion) extends DownloadResponse
   }
 
 }

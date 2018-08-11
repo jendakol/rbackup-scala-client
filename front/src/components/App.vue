@@ -30,9 +30,11 @@
         </vue-context>
         <vue-context ref="versionMenu">
             <ul>
-                <li @click="alert()">Download this version</li>
+                <li @click="restore">Restore this version</li>
             </ul>
         </vue-context>
+
+        <vue-snotify></vue-snotify>
     </div>
 
 </template>
@@ -89,31 +91,37 @@
             }
         },
         created: function () {
-            this.ws = new WebSocket("ws://" + HostUrl + "/ws-api");
-
-            this.connectionCheck = setInterval(() => {
-                if (this.ws.readyState === 1) {
-                    this.isConnected = true;
-                    clearInterval(this.connectionCheck);
-                    this.ws.send(JSON.stringify({name: "init"}));
-                }
-            }, 1000);
+            this.initWs();
 
             this.ws.onopen = () => {
                 this.isConnected = true;
             };
             this.ws.onclose = () => {
                 this.isConnected = false;
+                this.initWs();
             };
             this.ws.onerror = (err) => {
                 this.isConnected = false;
                 console.log("WS error: " + err);
+                this.initWs();
             };
             this.ws.onmessage = (data) => {
                 this.receiveWs(JSON.parse(data.data));
             };
         },
         methods: {
+            initWs() {
+                this.ws = new WebSocket("ws://" + HostUrl + "/ws-api");
+
+                this.connectionCheck = setInterval(() => {
+                    if (this.ws.readyState === 1) {
+                        this.isConnected = true;
+                        this.$snotify.success("Connection to client was successful", {timeout: 1500});
+                        clearInterval(this.connectionCheck);
+                        this.ws.send(JSON.stringify({name: "init"}));
+                    }
+                }, 1000);
+            },
             ajax(name, data) {
                 return axios.post("http://" + HostUrl + "/ajax-api", {name: name, data: data})
                     .then(t => {
@@ -140,18 +148,57 @@
                     }
                 })
             },
+            asyncActionWithNotification(actionName, data, initialText, responseToPromise) {
+                this.$snotify.async(initialText, () => new Promise((resolve, reject) => {
+                    this.ajax(actionName, data).then(resp => {
+                        responseToPromise(resp)
+                            .then(text => {
+                                resolve({
+                                    body: text,
+                                    config: {
+                                        html: text,
+                                        closeOnClick: true,
+                                        timeout: 3500
+                                    }
+                                })
+                            }, errText => reject({
+                                body: errText,
+                                config: {
+                                    // TODO HTML formatting
+                                    // html: '<div class="snotifyToast__title"><b>Html Bold Title</b></div><div class="snotifyToast__body"><i>Html</i> <b>toast</b> <u>content</u></div>',
+                                    closeOnClick: true,
+                                    timeout: 3500
+                                }
+                            }))
+                    })
+                }));
+            },
             uploadManually() {
                 let path = this.rightClicked.value;
 
-                // alert("Uploading " + path);
-
-                this.ajax("uploadManually", {path: path}).then(t => {
-                    if (t.success) {
-                        this.cloudResponseMessage = "Upload successful!"
+                this.asyncActionWithNotification("uploadManually", {path: path}, "Manually uploading " + path, (resp) => new Promise((success, error) => {
+                    if (resp.success) {
+                        success("Manual upload of " + path + " successful!")
                     } else {
-                        this.cloudResponseMessage = "Upload NOT successful, because: " + t.reason
+                        error("Upload of " + path + " was NOT successful, because " + resp.reason)
                     }
-                })
+                }));
+            },
+            restore() {
+                let path = this.rightClicked.path;
+                let versionId = this.rightClicked.versionId;
+                let versionDateTime = this.rightClicked.text;
+
+                this.asyncActionWithNotification("download", {
+                    path: path,
+                    version_id: versionId
+                }, "Restoring " + path + " to " + versionDateTime, (resp) => new Promise((success, error) => {
+                    if (resp.success) {
+                        success("File " + path + " successfully restored to " + versionDateTime + "!")
+                    } else {
+                        error(resp.message)
+                    }
+                }));
             },
             receiveWs(message) {
                 switch (message.type) {

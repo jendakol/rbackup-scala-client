@@ -11,6 +11,7 @@ object CirceImplicits {
 
   implicit val d2: Decoder[UUID] = Decoder.decodeString.map(UUID.fromString)
   implicit val d3: Decoder[LocalDateTime] = Decoder.decodeString.map(LocalDateTime.parse)
+  implicit val d4: Decoder[Sha256] = Decoder.decodeString.map(Sha256(_))
 
   implicit val e2: Encoder[UUID] = Encoder.encodeString.contramap(_.toString)
   implicit val e3: Encoder[LocalDateTime] = Encoder.encodeString.contramap(_.toString)

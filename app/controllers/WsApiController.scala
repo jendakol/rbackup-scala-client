@@ -57,7 +57,7 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
         out.get() match {
           case Some(o) =>
             Try {
-              logger.debug(s"Sending WS message: $wsMessage")
+              logger.trace(s"Sending WS message: $wsMessage")
 
               o ! wsMessage.asJson.noSpaces
             }.toEither
@@ -72,7 +72,7 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
   private class WebSocketApiActor(out: ActorRef) extends Actor with StrictLogging {
     def receive: Actor.Receive = {
       case content: String =>
-        logger.debug(s"Received WS message: $content")
+        logger.trace(s"Received WS message: $content")
         // TODO
 
         WsApiController.this.out.set(Option(out))

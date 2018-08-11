@@ -1,9 +1,10 @@
 package lib
 
 import io.circe.Json
-import io.circe.generic.auto._
+import io.circe.generic.extras.auto._
 import lib.App._
-import lib.serverapi.{LoginResponse, RegistrationResponse, UploadResponse}
+import lib.CirceImplicits._
+import lib.serverapi.{LoginResponse, RegistrationResponse}
 
 sealed trait Command
 
@@ -11,10 +12,11 @@ object Command {
   def apply(name: String, data: Option[Json]): Option[Command] = name match {
     case "ping" => Some(PingCommand)
     case "dirList" => data.flatMap(_.as[DirListCommand].toOption)
-//    case "saveFileTree" => data.flatMap(_.as[Seq[FileFromTree]].toOption).map(SaveFileTreeCommand)
+    //    case "saveFileTree" => data.flatMap(_.as[Seq[FileFromTree]].toOption).map(SaveFileTreeCommand)
     case "register" => data.flatMap(_.as[RegisterCommand].toOption)
     case "login" => data.flatMap(_.as[LoginCommand].toOption)
     case "uploadManually" => data.flatMap(_.as[UploadManually].toOption)
+    case "download" => data.flatMap(_.as[Download].toOption)
     case _ => None
   }
 }
@@ -30,6 +32,8 @@ case class RegisterCommand(username: String, password: String) extends Command
 case class LoginCommand(username: String, password: String) extends Command
 
 case class UploadManually(path: String) extends Command
+
+case class Download(path: String, versionId: Long) extends Command
 
 object RegisterCommand {
   def toResponse(resp: RegistrationResponse): Json = {
@@ -51,52 +55,3 @@ object LoginCommand {
     }
   }
 }
-
-object UploadCommand {
-  def toResponse(resp: UploadResponse): Json = {
-    resp match {
-      case UploadResponse.Uploaded(_) => parseSafe("""{ "success": true }""")
-      case UploadResponse.Sha256Mismatch => parseSafe("""{ "success": false, "reason": "SHA-256 mismatch" }""")
-    }
-  }
-}
-
-//trait FileTreeNode {
-//  def value: String
-//  def text: String
-//  def icon: String
-//  def isLeaf: Boolean
-//  def children: Option[Seq[FileTreeNode]]
-//
-//  def toJson: Json
-//}
-//
-//case class FileVersionFromTree(value: String, text: String) extends FileTreeNode {
-//
-//  override def icon: String = "fas fa-file"
-//
-//  override def isLeaf: Boolean = true
-//
-//  override def children: Option[Seq[FileTreeNode]] = None
-//
-//  override def toJson: Json = parseSafe(s"""
-//                                           |{"icon": "$icon", "isLeaf": $isLeaf, "value": "$value", "text": "$text"}
-//    """.stripMargin)
-//}
-//
-//case class FileFromTree(selected: Boolean,
-////                        loading: Boolean,
-//                        value: String,
-//                        text: String,
-//                        isLeaf: Boolean,
-//                        children: Option[Seq[FileFromTree]],
-//                        icon: String) {
-////  def flatten: Seq[FileFromTree] = {
-////    (this +: children.flatMap(_.flatten)).filterNot(_.loading)
-////  }
-////
-////  def toIterable: Iterable[FileFromTree] = new Iterable[FileFromTree] {
-////    override def iterator: Iterator[FileFromTree] = FileFromTree.this.flatten.iterator
-////  }
-//
-//}

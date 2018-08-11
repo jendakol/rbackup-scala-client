@@ -31,7 +31,7 @@ object clientapi {
       }
     }
 
-    case class RegularFile(value: String, text: String, versions: Option[Seq[FileVersion]]) extends FileTreeNode {
+    case class RegularFile(value: String, text: String, versions: Option[Seq[Version]]) extends FileTreeNode {
       private val icon: String = "fas fa-file icon-state-default"
 
       private val isLeaf: Boolean = !versions.exists(_.nonEmpty)
@@ -44,28 +44,30 @@ object clientapi {
     }
 
     object RegularFile {
-      def apply(file: File, versions: Option[Seq[serverapi.FileVersion]]): RegularFile = {
+      def apply(file: File, versions: Option[Seq[serverapi.RemoteFileVersion]]): RegularFile = {
         new RegularFile(
           value = file.path.toAbsolutePath.toString,
           text = file.name,
-          versions = versions.map(_.map(FileTreeNode.FileVersion(_)))
+          versions = versions.map(_.map(FileTreeNode.Version(file.pathAsString, _)))
         )
       }
     }
 
-    case class FileVersion(value: String, text: String) extends FileTreeNode {
+    case class Version(value: String, text: String, path: String, versionId: Long) extends FileTreeNode {
 
       private val icon: String = "fas fa-clock"
 
       val toJson: Json = parseSafe {
-        s"""{"icon": "$icon", "isLeaf": true, "value": "$value", "text": "$text", "isFile": false, "isVersion": true, "isDir": false}"""
+        s"""{"icon": "$icon", "isLeaf": true, "value": "$value", "text": "$text", "path": "$path", "versionId": $versionId, "isFile": false, "isVersion": true, "isDir": false}"""
       }
     }
 
-    object FileVersion {
-      def apply(fileVersion: lib.serverapi.FileVersion): FileVersion = new FileVersion(
+    object Version {
+      def apply(path: String, fileVersion: lib.serverapi.RemoteFileVersion): Version = new Version(
         value = fileVersion.version.toString,
-        text = App.DateTimeFormatter.format(fileVersion.created)
+        text = App.DateTimeFormatter.format(fileVersion.created),
+        path = path,
+        versionId = fileVersion.version
       )
     }
 

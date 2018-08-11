@@ -2,14 +2,15 @@ package lib
 
 import java.util.concurrent.atomic.AtomicReference
 
+import better.files.File
 import controllers.WsApiController
 import io.circe.Json
 import io.circe.generic.extras.auto._
 import javax.inject.Inject
 import lib.App._
 import lib.CirceImplicits._
-import lib.clientapi.FileTreeNode.FileVersion
-import lib.serverapi.RemoteFile
+import lib.clientapi.FileTreeNode.Version
+import lib.serverapi.{RemoteFile, RemoteFileVersion}
 
 class CloudFilesRegistry @Inject()(wsApiController: WsApiController) {
 
@@ -26,7 +27,7 @@ class CloudFilesRegistry @Inject()(wsApiController: WsApiController) {
       .send(
         controllers.WsMessage(
           "fileTreeUpdate",
-          FileTreeUpdate(remoteFile.originalName, remoteFile.versions.map(FileVersion(_))).asJson
+          FileTreeUpdate(remoteFile.originalName, remoteFile.versions.map(Version(remoteFile.originalName, _))).asJson
         ))
       .map(_ => newList)
   }
@@ -36,10 +37,16 @@ class CloudFilesRegistry @Inject()(wsApiController: WsApiController) {
     pureResult(cloudFilesList)
   }
 
-  def filesList: CloudFilesList = cloudFilesList.get()
+  def versions(file: File): Option[Vector[RemoteFileVersion]] = {
+    cloudFilesList.get().versions(file)
+  }
+
+  def get(file: File): Option[RemoteFile] = {
+    cloudFilesList.get().get(file)
+  }
 }
 
-private case class FileTreeUpdate(path: String, versions: Seq[FileVersion]) {
+private case class FileTreeUpdate(path: String, versions: Seq[Version]) {
   def asJson: Json = {
     parseSafe(s"""{"path": "$path", "versions": ${versions.map(_.toJson).mkString("[", ", ", "]")}}""")
   }

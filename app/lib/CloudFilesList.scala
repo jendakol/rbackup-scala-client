@@ -1,11 +1,15 @@
 package lib
 
 import better.files.File
-import lib.serverapi.{FileVersion, RemoteFile}
+import lib.serverapi.{RemoteFile, RemoteFileVersion}
 
 case class CloudFilesList private (files: Map[String, RemoteFile]) {
-  def versions(file: File): Option[Vector[FileVersion]] = {
+  def versions(file: File): Option[Vector[RemoteFileVersion]] = {
     files.get(file.path.toAbsolutePath.toString).map(_.versions)
+  }
+
+  def get(file: File): Option[RemoteFile] = {
+    files.get(file.path.toAbsolutePath.toString)
   }
 
   def update(remoteFile: RemoteFile): CloudFilesList = {

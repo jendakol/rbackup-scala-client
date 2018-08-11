@@ -12,7 +12,7 @@ import javax.inject.{Inject, Singleton}
 import lib.App._
 import lib.CirceImplicits._
 import lib.clientapi.FileTreeNode
-import lib.serverapi.UploadResponse
+import lib.serverapi.{DownloadResponse, UploadResponse}
 import monix.eval.Task
 import monix.execution.Scheduler
 import utils.ConfigProperty
@@ -20,7 +20,7 @@ import utils.ConfigProperty
 @Singleton
 class CommandExecutor @Inject()(cloudConnector: CloudConnector,
                                 wsApiController: WsApiController,
-                                cloudFilesRegistry: CloudFilesRegistry,
+                                filesRegistry: CloudFilesRegistry,
                                 @ConfigProperty("deviceId") deviceId: String)(implicit scheduler: Scheduler)
     extends StrictLogging {
 
@@ -50,15 +50,45 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
         }
       }
 
-    case DirListCommand(path) =>
-      val filesList = cloudFilesRegistry.filesList
+    case Download(filePath, versionId) =>
+      logger.debug(s"Downloading $filePath with versionId $versionId")
 
+      filesRegistry
+        .get(File(filePath))
+        .flatMap { file =>
+          file.versions.find(_.version == versionId).map(file -> _)
+        } match {
+        case Some((remoteFile, version)) =>
+          cloudConnector
+            .download(version, File(remoteFile.originalName))
+            .map {
+              case DownloadResponse.Downloaded(_, _) =>
+                parseSafe(s"""{ "success": true }""")
+              case DownloadResponse.FileVersionNotFound(_) =>
+                parseSafe(s"""{ "success": false, "message": "Download of $filePath was not successful\\nVersion not found on server" }""")
+            }
+            .recover {
+              case AppException.AccessDenied(_, _) =>
+                parseSafe(s"""{ "success": false, "message": "Download of $filePath was not successful<br>Access denied" }""")
+              case AppException.ServerNotResponding(_) =>
+                parseSafe(s"""{ "success": false, "message": "Server does not respond" }""")
+            }
+
+        case None =>
+          pureResult(
+            parseSafe {
+              s"""{ "success": false, "message": "Download of $filePath was not successful<br>Version not found" }"""
+            }
+          )
+      }
+
+    case DirListCommand(path) =>
       val nodes = if (path != "") {
         File(path).children
           .filter(_.isReadable)
           .map { file =>
             if (file.isRegularFile) {
-              val versions = filesList.versions(file)
+              val versions = filesRegistry.versions(file)
               FileTreeNode.RegularFile(file, versions)
             } else {
               FileTreeNode.Directory(file)
@@ -87,7 +117,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
 
   private def updateFilesRegistry(r: UploadResponse): EitherT[Task, AppException, _ >: CloudFilesList with Unit] = {
     r match {
-      case UploadResponse.Uploaded(remoteFile) => cloudFilesRegistry.updateFile(remoteFile)
+      case UploadResponse.Uploaded(remoteFile) => filesRegistry.updateFile(remoteFile)
       case _ => pureResult(())
     }
   }

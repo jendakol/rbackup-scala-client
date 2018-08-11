@@ -36,7 +36,9 @@ class AjaxApiController @Inject()(cc: ControllerComponents, commandExecutor: Com
           .map {
             case Right(json) =>
               Ok {
-                json.pretty(JsonPrinter)
+                val str = json.pretty(JsonPrinter)
+                logger.debug(s"Sending AJAX response: $str")
+                str
               }.as("application/json")
 
             case Left(err) =>
