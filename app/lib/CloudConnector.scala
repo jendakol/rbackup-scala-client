@@ -30,6 +30,9 @@ import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
 class CloudConnector(rootUri: Uri, httpClient: Client[Task], chunkSize: Int) extends StrictLogging {
+
+  // TODO progress listeners
+
   def registerAccount(username: String, password: String): Result[RegistrationResponse] = {
     logger.debug(s"Creating registration for username $username")
 
@@ -87,7 +90,7 @@ class CloudConnector(rootUri: Uri, httpClient: Client[Task], chunkSize: Int) ext
     logger.debug("Requesting status from server")
 
     exec(plainRequest(Method.GET, "status")) {
-      case ServerResponse(Status.Created, Some(json)) => json.hcursor.get[String]("status").toResult
+      case ServerResponse(Status.Ok, Some(json)) => json.hcursor.get[String]("status").toResult
     }
   }
 

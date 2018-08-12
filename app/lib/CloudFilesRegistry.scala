@@ -12,11 +12,13 @@ import lib.CirceImplicits._
 import lib.clientapi.FileTreeNode.Version
 import lib.serverapi.{RemoteFile, RemoteFileVersion}
 
-class CloudFilesRegistry @Inject()(wsApiController: WsApiController) {
+class CloudFilesRegistry @Inject()(wsApiController: WsApiController, dao: Dao) {
 
   private val lock = new Object
 
-  private val cloudFilesList: AtomicReference[CloudFilesList] = new AtomicReference(CloudFilesList(Nil))
+  private val cloudFilesList: AtomicReference[CloudFilesList] = lock.synchronized { // init
+    new AtomicReference(CloudFilesList(Nil))
+  }
 
   // TODO connect to DB
 

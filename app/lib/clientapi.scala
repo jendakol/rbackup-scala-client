@@ -6,6 +6,26 @@ import lib.App.parseSafe
 
 object clientapi {
 
+  sealed trait ClientStatus {
+    def name: String
+  }
+
+  object ClientStatus {
+
+    case object Installed extends ClientStatus {
+      val name: String = "INSTALLED"
+    }
+
+    case object Ready extends ClientStatus {
+      val name: String = "READY"
+    }
+
+    case object Disconnected extends ClientStatus {
+      val name: String = "DISCONNECTED"
+    }
+
+  }
+
   sealed trait FileTreeNode {
     def toJson: Json
   }

@@ -11,10 +11,12 @@ sealed trait Command
 object Command {
   def apply(name: String, data: Option[Json]): Option[Command] = name match {
     case "ping" => Some(PingCommand)
+    case "status" => Some(StatusCommand)
     case "dirList" => data.flatMap(_.as[DirListCommand].toOption)
     //    case "saveFileTree" => data.flatMap(_.as[Seq[FileFromTree]].toOption).map(SaveFileTreeCommand)
     case "register" => data.flatMap(_.as[RegisterCommand].toOption)
     case "login" => data.flatMap(_.as[LoginCommand].toOption)
+    case "logout" => Some(LogoutCommand)
     case "uploadManually" => data.flatMap(_.as[UploadManually].toOption)
     case "download" => data.flatMap(_.as[Download].toOption)
     case _ => None
@@ -23,6 +25,8 @@ object Command {
 
 case object PingCommand extends Command
 
+case object StatusCommand extends Command
+
 case class DirListCommand(path: String) extends Command
 
 //case class SaveFileTreeCommand(files: Seq[FileFromTree]) extends Command
@@ -30,6 +34,8 @@ case class DirListCommand(path: String) extends Command
 case class RegisterCommand(username: String, password: String) extends Command
 
 case class LoginCommand(username: String, password: String) extends Command
+
+case object LogoutCommand extends Command
 
 case class UploadManually(path: String) extends Command
 

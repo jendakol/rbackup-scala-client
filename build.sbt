@@ -5,6 +5,7 @@ import scala.sys.process.Process
 lazy val Versions = new {
   val monix = "3.0.0-RC1"
   val http4s = "0.18.15"
+  val scalikeJdbc = "3.3.1"
 }
 
 mappings in Universal ++= directory(baseDirectory.value / "public")
@@ -23,6 +24,9 @@ libraryDependencies ++= Seq(
   "org.http4s" %% "http4s-dsl" % Versions.http4s,
   "org.http4s" %% "http4s-blaze-client" % Versions.http4s,
   "io.monix" % "monix_2.12" % Versions.monix,
+  "com.h2database" % "h2" % "1.4.197",
+  "org.scalikejdbc" %% "scalikejdbc" % Versions.scalikeJdbc,
+  "org.scalikejdbc" %% "scalikejdbc-config" % Versions.scalikeJdbc,
   "com.github.pathikrit" % "better-files_2.12" % "3.6.0",
   "commons-io" % "commons-io" % "2.6",
   "com.github.pureconfig" %% "pureconfig" % "0.9.1",

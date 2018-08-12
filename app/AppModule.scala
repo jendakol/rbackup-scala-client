@@ -3,10 +3,12 @@ import java.util.concurrent.Executors
 
 import com.google.inject.{AbstractModule, Binder, Key}
 import com.typesafe.config._
-import lib.{CloudConnector, CloudFilesList, CloudFilesRegistry}
+import lib.{CloudConnector, Dao, DbScheme, Settings}
 import monix.execution.Scheduler
 import monix.execution.schedulers.SchedulerService
 import net.codingwell.scalaguice.ScalaModule
+import scalikejdbc._
+import scalikejdbc.config.DBs
 import utils.{AllowedApiOrigins, ConfigProperty, ConfigPropertyImpl}
 
 import scala.collection.JavaConverters._
@@ -14,18 +16,36 @@ import scala.collection.JavaConverters._
 class AppModule extends AbstractModule with ScalaModule {
   private lazy val config = ConfigFactory.load()
 
+  DBs.setupAll()
+
+  DB.autoCommit { implicit session =>
+    DbScheme.create
+  }
+
   override def configure(): Unit = {
     bindConfig(config.root(), "")(binder())
 
-    implicit val scheduler: SchedulerService = Scheduler(Executors.newCachedThreadPool()) // TODO
+    val executorService = Executors.newCachedThreadPool()
+    implicit val scheduler: SchedulerService = Scheduler(executorService) // TODO
 
     bind[AllowedApiOrigins].toInstance(AllowedApiOrigins(config.getStringList("allowedWsApiOrigins").asScala))
 
-    bind[CloudConnector].toInstance {
-      CloudConnector.fromConfig(config.getConfig("cloudConnector"))
-    }
+    val cloudConnector = CloudConnector.fromConfig(config.getConfig("cloudConnector"))
+    val dao = new Dao(executorService)
+    val settings = new Settings(dao)
+
+    bind[CloudConnector].toInstance(cloudConnector)
+    bind[Dao].toInstance(dao)
+    bind[Settings].toInstance(settings)
 
     bind[Scheduler].toInstance(scheduler)
+
+    // startup:
+    val deviceId = config.getString("deviceId")
+
+//    for {
+//      list <- cloudConnector.listFiles(Some(deviceId))
+//    }
   }
 
   // based on: http://vastdevblog.vast.com/blog/2012/06/16/creating-named-guice-bindings-for-typesafe-config-properties/
