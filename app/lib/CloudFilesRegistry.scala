@@ -28,7 +28,7 @@ class CloudFilesRegistry @Inject()(wsApiController: WsApiController, dao: Dao) {
     wsApiController
       .send(
         controllers.WsMessage(
-          "fileTreeUpdate",
+          "fileUploaded",
           FileTreeUpdate(remoteFile.originalName, remoteFile.versions.map(Version(remoteFile.originalName, _))).asJson
         ))
       .map(_ => newList)

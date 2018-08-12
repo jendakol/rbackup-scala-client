@@ -1,8 +1,7 @@
 <template>
     <div>
 
-        <v-jstree :data="fileTreeData" :item-events="itemEvents" :async="loadData" show-checkbox multiple allow-batch
-                  whole-row></v-jstree>
+        <v-jstree :data="fileTreeData" :item-events="itemEvents" :async="loadData"></v-jstree>
 
         <vue-context ref="versionMenu">
             <ul>
@@ -25,18 +24,21 @@
 <script>
     import VJstree from 'vue-jstree';
     import {VueContext} from 'vue-context';
+    import JSPath from 'jspath';
 
     export default {
         name: "Restore",
         props: {
             ajax: Function,
-            asyncActionWithNotification: Function
+            asyncActionWithNotification: Function,
+            registerWsListener: Function
         },
         components: {
             VJstree,
             VueContext
         },
         created() {
+            this.registerWsListener(this.receiveWs)
         },
         data() {
             return {
@@ -44,8 +46,7 @@
                 loadData: (oriNode, resolve) => {
                     let path = oriNode.data.value;
 
-                    // axios.post('http://localhost:9000/ajax-api', {name: "dirList", data: {path: path != undefined ? path + "" : ""}})
-                    this.ajax("dirList", {path: path != undefined ? path + "" : ""})
+                    this.ajax("dirList", {path: path != undefined ? path + "" : "", include_versions: true})
                         .then(response => {
                             resolve(response)
                         })
@@ -85,6 +86,23 @@
                         error(resp.message)
                     }
                 }));
+            },
+            receiveWs(message) {
+                switch (message.type) {
+                    case "fileUploaded": {
+                        let data = message.data;
+                        let node = this.selectTreeNode(data.path);
+
+                        if (node != undefined) {
+                            node.children = data.versions;
+                            node.isLeaf = false;
+                        }
+                    }
+                        break;
+                }
+            },
+            selectTreeNode(path) {
+                return JSPath.apply("..{.value === '" + path + "'}", this.fileTreeData)[0]
             },
         }
     }

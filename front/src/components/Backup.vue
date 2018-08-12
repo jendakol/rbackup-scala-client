@@ -3,6 +3,10 @@
         <v-jstree :data="fileTreeData" :item-events="itemEvents" :async="loadData" show-checkbox multiple allow-batch
                   whole-row></v-jstree>
 
+        <BottomBar>
+            <b-btn @click="saveBackupSelection" variant="success">Save</b-btn>
+        </BottomBar>
+
         <vue-context ref="fileMenu">
             <ul>
                 <li @click="uploadManually">Upload file now</li>
@@ -19,18 +23,24 @@
 <script>
     import VJstree from 'vue-jstree';
     import {VueContext} from 'vue-context';
+    import JSPath from 'jspath';
+
+    import BottomBar from '../components/BottomBar.vue';
 
     export default {
         name: "Backup",
         props: {
             ajax: Function,
-            asyncActionWithNotification: Function
+            asyncActionWithNotification: Function,
+            registerWsListener: Function
         },
         components: {
             VJstree,
-            VueContext
+            VueContext,
+            BottomBar
         },
         created() {
+            this.registerWsListener(this.receiveWs)
         },
         data() {
             return {
@@ -38,8 +48,7 @@
                 loadData: (oriNode, resolve) => {
                     let path = oriNode.data.value;
 
-                    // axios.post('http://localhost:9000/ajax-api', {name: "dirList", data: {path: path != undefined ? path + "" : ""}})
-                    this.ajax("dirList", {path: path != undefined ? path + "" : ""})
+                    this.ajax("dirList", {path: path != undefined ? path + "" : "", include_versions: false})
                         .then(response => {
                             resolve(response)
                         })
@@ -61,6 +70,9 @@
                 }
             }
         }, methods: {
+            saveBackupSelection(){
+                alert()
+            },
             uploadManually() {
                 let path = this.rightClicked.value;
 
@@ -71,6 +83,23 @@
                         error("Upload of " + path + " was NOT successful, because " + resp.reason)
                     }
                 }));
+            },
+            receiveWs(message) {
+                // switch (message.type) {
+                //     case "fileUploaded": {
+                //         let data = message.data;
+                //         let node = this.selectTreeNode(data.path);
+                //
+                //         if (node != undefined) {
+                //             node.children = data.versions;
+                //             node.isLeaf = false;
+                //         }
+                //     }
+                //         break;
+                // }
+            },
+            selectTreeNode(path) {
+                return JSPath.apply("..{.value === '" + path + "'}", this.fileTreeData)[0]
             },
         }
     }

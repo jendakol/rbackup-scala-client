@@ -48,7 +48,7 @@
                             </template>
 
                             <div class="tabContent">
-                                <Backup :ajax="this.ajax" :asyncActionWithNotification="this.asyncActionWithNotification"/>
+                                <Backup :ajax="this.ajax" :registerWsListener="this.addWsListener" :asyncActionWithNotification="this.asyncActionWithNotification"/>
                             </div>
                         </b-tab>
                         <b-tab>
@@ -58,7 +58,7 @@
                             </template>
 
                             <div class="tabContent">
-                                <Restore :ajax="this.ajax" :asyncActionWithNotification="this.asyncActionWithNotification"/>
+                                <Restore :ajax="this.ajax" :registerWsListener="this.addWsListener" :asyncActionWithNotification="this.asyncActionWithNotification"/>
                             </div>
                         </b-tab>
                     </b-tabs>
@@ -78,7 +78,6 @@
 
     import axios from 'axios';
     import {VueContext} from 'vue-context';
-    import JSPath from 'jspath';
 
     import Status from '../components/Status.vue';
     import Backup from '../components/Backup.vue';
@@ -102,6 +101,7 @@
                 ws: null,
                 isConnected: false,
                 connectionCheck: null,
+                wsListeners: Array()
             }
         },
         created: function () {
@@ -146,22 +146,13 @@
                     }
                 }));
             },
-            receiveWs(message) {
-                switch (message.type) {
-                    case "fileTreeUpdate": {
-                        let data = message.data;
-                        let node = this.selectTreeNode(data.path);
-
-                        if (node != undefined) {
-                            node.children = data.versions;
-                            node.isLeaf = false;
-                        }
-                    }
-                        break;
-                }
+            addWsListener(listener){
+                this.wsListeners.push(listener)
             },
-            selectTreeNode(path) {
-                return JSPath.apply("..{.value === '" + path + "'}", this.fileTreeData)[0]
+            receiveWs(message){
+                this.wsListeners.forEach((listener) => {
+                    listener(message)
+                })
             },
         },
     }

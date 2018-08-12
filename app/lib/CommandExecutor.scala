@@ -104,13 +104,14 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
         }
       }
 
-    case DirListCommand(path) =>
+    case DirListCommand(path, includeVersions) =>
       val nodes = if (path != "") {
         File(path).children
           .filter(_.isReadable)
           .map { file =>
             if (file.isRegularFile) {
-              val versions = filesRegistry.versions(file)
+              val versions = if (includeVersions) filesRegistry.versions(file) else None
+
               FileTreeNode.RegularFile(file, versions)
             } else {
               FileTreeNode.Directory(file)

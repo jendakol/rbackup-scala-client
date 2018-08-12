@@ -27,7 +27,7 @@ case object PingCommand extends Command
 
 case object StatusCommand extends Command
 
-case class DirListCommand(path: String) extends Command
+case class DirListCommand(path: String, includeVersions: Boolean) extends Command
 
 //case class SaveFileTreeCommand(files: Seq[FileFromTree]) extends Command
 
