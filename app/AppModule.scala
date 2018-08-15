@@ -3,6 +3,7 @@ import java.util.concurrent.Executors
 
 import com.google.inject.{AbstractModule, Binder, Key}
 import com.typesafe.config._
+import com.typesafe.scalalogging.StrictLogging
 import lib.{CloudConnector, Dao, DbScheme, Settings}
 import monix.execution.Scheduler
 import monix.execution.schedulers.SchedulerService
@@ -12,8 +13,10 @@ import scalikejdbc.config.DBs
 import utils.{AllowedApiOrigins, ConfigProperty, ConfigPropertyImpl}
 
 import scala.collection.JavaConverters._
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 
-class AppModule extends AbstractModule with ScalaModule {
+class AppModule extends AbstractModule with ScalaModule with StrictLogging {
   private lazy val config = ConfigFactory.load()
 
   DBs.setupAll()
@@ -42,6 +45,10 @@ class AppModule extends AbstractModule with ScalaModule {
 
     // startup:
     val deviceId = config.getString("deviceId")
+
+    // load files from server, compare with DB
+
+    settings.initializing(false)
 
 //    for {
 //      list <- cloudConnector.listFiles(Some(deviceId))

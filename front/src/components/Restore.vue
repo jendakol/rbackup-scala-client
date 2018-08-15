@@ -46,7 +46,7 @@
                 loadData: (oriNode, resolve) => {
                     let path = oriNode.data.value;
 
-                    this.ajax("dirList", {path: path != undefined ? path + "" : "", include_versions: true})
+                    this.ajax("backedUpFileList", {})
                         .then(response => {
                             resolve(response)
                         })
@@ -89,14 +89,8 @@
             },
             receiveWs(message) {
                 switch (message.type) {
-                    case "fileUploaded": {
-                        let data = message.data;
-                        let node = this.selectTreeNode(data.path);
-
-                        if (node != undefined) {
-                            node.children = data.versions;
-                            node.isLeaf = false;
-                        }
+                    case "backedUpFilesUpdate": {
+                        this.fileTreeData = message.data
                     }
                         break;
                 }

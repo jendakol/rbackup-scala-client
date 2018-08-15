@@ -12,6 +12,7 @@ object Command {
   def apply(name: String, data: Option[Json]): Option[Command] = name match {
     case "ping" => Some(PingCommand)
     case "status" => Some(StatusCommand)
+    case "backedUpFileList" => Some(BackedUpFileListCommand)
     case "dirList" => data.flatMap(_.as[DirListCommand].toOption)
     //    case "saveFileTree" => data.flatMap(_.as[Seq[FileFromTree]].toOption).map(SaveFileTreeCommand)
     case "register" => data.flatMap(_.as[RegisterCommand].toOption)
@@ -27,7 +28,9 @@ case object PingCommand extends Command
 
 case object StatusCommand extends Command
 
-case class DirListCommand(path: String, includeVersions: Boolean) extends Command
+case class DirListCommand(path: String) extends Command
+
+case object BackedUpFileListCommand extends Command
 
 //case class SaveFileTreeCommand(files: Seq[FileFromTree]) extends Command
 

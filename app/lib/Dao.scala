@@ -21,14 +21,15 @@ import scalikejdbc._
 
 import scala.util.control.NonFatal
 
+//noinspection SqlNoDataSourceInspection
 class Dao(executor: ExecutorService) extends StrictLogging {
   private val sch: SchedulerService = Scheduler(executor: ExecutorService)
 
-  def getFile(discoveredFile: File): Result[Option[DbFile]] = data.EitherT {
+  def getFile(file: File): Result[Option[DbFile]] = data.EitherT {
     Task {
-      val path = discoveredFile.pathAsString
+      val path = file.pathAsString
 
-      logger.debug(s"Trying to locate $discoveredFile in DB")
+      logger.debug(s"Trying to locate $file in DB")
 
       Right {
         DB.readOnly { implicit session =>
@@ -39,6 +40,22 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       .asyncBoundary
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Getting file", e))
+      }
+  }
+
+  def listAllFiles: Result[List[DbFile]] = EitherT {
+    Task {
+      logger.debug(s"Trying to list all files from DB")
+
+      Right {
+        DB.readOnly { implicit session =>
+          sql"SELECT * FROM files".map(DbFile.apply).list().apply()
+        }
+      }
+    }.executeOn(sch)
+      .asyncBoundary
+      .onErrorRecover {
+        case NonFatal(e) => Left(DbException("Listing files", e))
       }
   }
 
@@ -68,16 +85,17 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       }
   }
 
-  def updateFile(fileId: Long, file: File, remoteFile: RemoteFile): Result[Unit] = EitherT {
+  def updateFile(file: File, remoteFile: RemoteFile): Result[Unit] = EitherT {
     Task {
       val fileSize = file.size
       val mtime = file.lastModifiedTime
       val remoteFileJson = remoteFile.asJson.noSpaces
+      val path = file.pathAsString
 
-      logger.debug(s"Updating $file in DB (ID $fileId)")
+      logger.debug(s"Updating $file in DB")
 
       DB.autoCommit { implicit session =>
-        sql"UPDATE files SET last_modified = ${mtime}, size = ${fileSize}, remote_file = ${remoteFileJson} WHERE id = ${fileId}"
+        sql"merge into files key(path) values(${path}, ${mtime}, ${fileSize}, ${remoteFileJson})"
           .executeUpdate()
           .apply()
       }
@@ -155,19 +173,22 @@ class Dao(executor: ExecutorService) extends StrictLogging {
   }
 }
 
-case class DbFile(id: Long, path: String, lastModified: ZonedDateTime, size: Long, remoteFile: RemoteFile)
+case class DbFile(path: String, lastModified: ZonedDateTime, size: Long, remoteFile: RemoteFile)
 
 object DbFile {
   def apply(rs: WrappedResultSet): DbFile = {
     import rs._
 
     DbFile(
-      id = long("id"),
       path = string("path"),
-      lastModified = dateTime("last_modified"),
+      lastModified = zonedDateTime("last_modified"),
       size = long("size"),
-      remoteFile = decode[RemoteFile](string("remote_file"))
-        .getOrElse(throw new IllegalArgumentException("DB contains unparseable RemoteFile"))
+      remoteFile = decode[RemoteFile](string("remote_file")) match {
+        case Right(v) => v
+        case Left(err) =>
+          println(string("remote_file"))
+          throw new IllegalArgumentException("DB contains unparseable RemoteFile", err)
+      }
     )
   }
 }

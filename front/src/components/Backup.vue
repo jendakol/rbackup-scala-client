@@ -48,7 +48,7 @@
                 loadData: (oriNode, resolve) => {
                     let path = oriNode.data.value;
 
-                    this.ajax("dirList", {path: path != undefined ? path + "" : "", include_versions: false})
+                    this.ajax("dirList", {path: path != undefined ? path + "" : ""})
                         .then(response => {
                             resolve(response)
                         })

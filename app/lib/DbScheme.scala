@@ -7,8 +7,7 @@ object DbScheme {
     sql"""
          |CREATE TABLE IF NOT EXISTS FILES
          |(
-         |    ID BIGINT AUTO_INCREMENT PRIMARY KEY NOT NULL,
-         |    PATH VARCHAR(65536) NOT NULL,
+         |    PATH VARCHAR(65536) PRIMARY KEY NOT NULL,
          |    LAST_MODIFIED TIMESTAMP NOT NULL,
          |    SIZE BIGINT NOT NULL,
          |    REMOTE_FILE TEXT

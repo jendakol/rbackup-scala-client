@@ -1,7 +1,5 @@
 package lib
 
-import java.util.concurrent.atomic.AtomicReference
-
 import better.files.File
 import controllers.WsApiController
 import io.circe.Json
@@ -9,46 +7,42 @@ import io.circe.generic.extras.auto._
 import javax.inject.Inject
 import lib.App._
 import lib.CirceImplicits._
-import lib.clientapi.FileTreeNode.Version
+import lib.clientapi.{FileTree, Version}
 import lib.serverapi.{RemoteFile, RemoteFileVersion}
 
 class CloudFilesRegistry @Inject()(wsApiController: WsApiController, dao: Dao) {
 
-  private val lock = new Object
-
-  private val cloudFilesList: AtomicReference[CloudFilesList] = lock.synchronized { // init
-    new AtomicReference(CloudFilesList(Nil))
-  }
-
-  // TODO connect to DB
-
-  def updateFile(remoteFile: RemoteFile): Result[CloudFilesList] = lock.synchronized {
-    val newList = cloudFilesList.updateAndGet(_.update(remoteFile))
-
-    wsApiController
-      .send(
+  def updateFile(file: File, remoteFile: RemoteFile): Result[Unit] = {
+    def sendWsUpdate(json: Json): Result[Unit] = {
+      wsApiController.send {
         controllers.WsMessage(
-          "fileUploaded",
-          FileTreeUpdate(remoteFile.originalName, remoteFile.versions.map(Version(remoteFile.originalName, _))).asJson
-        ))
-      .map(_ => newList)
+          `type` = "backedUpFilesUpdate",
+          data = json
+        )
+      }
+    }
+
+    for {
+      _ <- dao.updateFile(file, remoteFile)
+      files <- dao.listAllFiles
+      fileTrees = FileTree.fromRemoteFiles(files.map(_.remoteFile))
+      json = fileTrees.toJson
+      _ <- sendWsUpdate(json)
+    } yield {
+      ()
+    }
   }
 
-  def updateFilesList(cloudFilesList: CloudFilesList): Result[CloudFilesList] = lock.synchronized {
-    this.cloudFilesList.set(cloudFilesList)
-    pureResult(cloudFilesList)
+  def versions(file: File): Result[Option[Vector[RemoteFileVersion]]] = {
+    dao.getFile(file).map(_.map(_.remoteFile.versions))
   }
 
-  def versions(file: File): Option[Vector[RemoteFileVersion]] = {
-    cloudFilesList.get().versions(file)
-  }
-
-  def get(file: File): Option[RemoteFile] = {
-    cloudFilesList.get().get(file)
+  def get(file: File): Result[Option[RemoteFile]] = {
+    dao.getFile(file).map(_.map(_.remoteFile))
   }
 }
 
-private case class FileTreeUpdate(path: String, versions: Seq[Version]) {
+private case class FileUploadedUpdate(path: String, versions: Seq[Version]) {
   def asJson: Json = {
     parseSafe(s"""{"path": "$path", "versions": ${versions.map(_.toJson).mkString("[", ", ", "]")}}""")
   }

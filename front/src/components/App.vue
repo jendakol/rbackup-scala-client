@@ -7,6 +7,9 @@
             <div v-if="clientStatus === 'DISCONNECTED'">
                 Disconnected
             </div>
+            <div v-if="clientStatus === 'INITIALIZING'">
+                App initializing
+            </div>
             <div v-if="clientStatus === 'READY'">
                 <MainApp v-on:logout="updateStatus" :hostUrl="this.hostUrl" :ajax="this.ajax"
                          :asyncActionWithNotification="this.asyncActionWithNotification"/>
@@ -39,6 +42,8 @@
             setTimeout(() => {
                 this.updateStatus(); // TODO timeout?!
             }, 100);
+
+            this.ajax("backedUpFileList")
         },
         methods: {
             ajax(name, data) {
@@ -76,6 +81,11 @@
                 this.ajax("status").then(resp => {
                     if (resp.success) {
                         this.clientStatus = resp.status;
+
+                        // plan refresh if it went wrong
+                        if (resp.status === "INITIALIZING" || resp.status === "DISCONNECTED") {
+                            setTimeout(() => this.updateStatus(), 1000)
+                        }
                     } else {
                         this.$snotify.error(resp.message)
                     }

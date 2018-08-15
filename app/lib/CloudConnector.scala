@@ -1,6 +1,7 @@
 package lib
 
 import java.io.ByteArrayInputStream
+import java.net.ConnectException
 import java.nio.file.AccessDeniedException
 import java.util.concurrent.TimeoutException
 
@@ -32,6 +33,7 @@ import scala.concurrent.duration.Duration
 class CloudConnector(rootUri: Uri, httpClient: Client[Task], chunkSize: Int) extends StrictLogging {
 
   // TODO progress listeners
+  // TODO retries
 
   def registerAccount(username: String, password: String): Result[RegistrationResponse] = {
     logger.debug(s"Creating registration for username $username")
@@ -70,6 +72,7 @@ class CloudConnector(rootUri: Uri, httpClient: Client[Task], chunkSize: Int) ext
         case resp if resp.status == Status.NotFound => Task.now(Right(DownloadResponse.FileVersionNotFound(fileVersion)))
       }
       .onErrorRecover {
+        case e: ConnectException => Left(ServerNotResponding(e))
         case e: TimeoutException => Left(ServerNotResponding(e))
       }
   }
@@ -138,42 +141,47 @@ class CloudConnector(rootUri: Uri, httpClient: Client[Task], chunkSize: Int) ext
   private def exec[A](request: Request[Task])(pf: PartialFunction[ServerResponse, Result[A]]): Result[A] = EitherT {
     logger.debug(s"Cloud request: $request")
 
-    httpClient.fetch(request) { resp =>
-      logger.debug(s"Cloud response: $resp")
+    httpClient
+      .fetch(request) { resp =>
+        logger.debug(s"Cloud response: $resp")
 
-      resp.bodyAsText.compile.toList
-        .map(parts => if (parts.isEmpty) None else Some(parts.mkString))
-        .flatMap { str =>
-          logger.debug(s"Cloud response body: $str")
+        resp.bodyAsText.compile.toList
+          .map(parts => if (parts.isEmpty) None else Some(parts.mkString))
+          .flatMap { str =>
+            logger.debug(s"Cloud response body: $str")
 
-          val jsonResult = str.map(io.circe.parser.parse) match {
-            case Some(Right(json)) => pureResult(Some(json))
-            case None => pureResult(None)
-            case Some(Left(err)) =>
-              failedResult {
-                AppException.InvalidResponseException(
-                  resp.status.code,
-                  str.toString,
-                  "Invalid JSON in body",
-                  AppException.ParsingFailure(str.toString, err)
+            val jsonResult = str.map(io.circe.parser.parse) match {
+              case Some(Right(json)) => pureResult(Some(json))
+              case None => pureResult(None)
+              case Some(Left(err)) =>
+                failedResult {
+                  AppException.InvalidResponseException(
+                    resp.status.code,
+                    str.toString,
+                    "Invalid JSON in body",
+                    AppException.ParsingFailure(str.toString, err)
+                  )
+                }
+            }
+
+            jsonResult
+              .flatMap[AppException, A] { json =>
+                val serverResponse = ServerResponse(resp.status, json)
+
+                pf.applyOrElse(
+                  serverResponse,
+                  (_: ServerResponse) => {
+                    failedResult(AppException.InvalidResponseException(resp.status.code, str.toString, "Unexpected status or content"))
+                  }
                 )
               }
+              .value
           }
-
-          jsonResult
-            .flatMap[AppException, A] { json =>
-              val serverResponse = ServerResponse(resp.status, json)
-
-              pf.applyOrElse(
-                serverResponse,
-                (_: ServerResponse) => {
-                  failedResult(AppException.InvalidResponseException(resp.status.code, str.toString, "Unexpected status or content"))
-                }
-              )
-            }
-            .value
-        }
-    }
+      }
+      .onErrorRecover {
+        case e: ConnectException => Left(ServerNotResponding(e))
+        case e: TimeoutException => Left(ServerNotResponding(e))
+      }
   }
 
   private def receiveStreamedFile(fileVersion: RemoteFileVersion,

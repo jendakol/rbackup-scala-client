@@ -11,6 +11,20 @@ class Settings(dao: Dao) {
     getOrLoad("sessionId", _sessionId, SessionId)
   }
 
+  def sessionId(sessionId: Option[SessionId]): Result[Unit] = {
+    _sessionId.set(sessionId)
+    sessionId match {
+      case Some(SessionId(value)) => set("sessionId", value)
+      case None => delete("sessionId")
+    }
+  }
+
+  private val _initializing = new AtomicReference(true)
+
+  def initializing: Boolean = _initializing.get
+
+  def initializing(i: Boolean): Unit = _initializing.set(i)
+
   private def getOrLoad[A](key: String, ref: => AtomicReference[Option[A]], conv: String => A): Result[Option[A]] = {
     pureResult(ref.get())
       .flatMap {
@@ -24,15 +38,15 @@ class Settings(dao: Dao) {
       }
   }
 
-  def get(key: String): Result[Option[String]] = {
+  private def get(key: String): Result[Option[String]] = {
     dao.getSetting(key)
   }
 
-  def set(key: String, value: String): Result[Unit] = {
+  private def set(key: String, value: String): Result[Unit] = {
     dao.setSetting(key, value)
   }
 
-  def delete(key: String): Result[Unit] = {
+  private def delete(key: String): Result[Unit] = {
     dao.deleteSetting(key)
   }
 }
