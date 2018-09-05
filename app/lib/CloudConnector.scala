@@ -1,6 +1,6 @@
 package lib
 
-import java.io.ByteArrayInputStream
+import java.io.{ByteArrayInputStream, InputStream}
 import java.net.ConnectException
 import java.nio.file.AccessDeniedException
 import java.util.concurrent.TimeoutException
@@ -9,6 +9,8 @@ import better.files.File
 import cats.data.EitherT
 import com.typesafe.config.{Config, ConfigFactory}
 import com.typesafe.scalalogging.StrictLogging
+import fs2.Stream
+import fs2.text.utf8Encode
 import io.circe.Json
 import io.circe.generic.extras.auto._
 import lib.App._
@@ -21,9 +23,9 @@ import monix.execution.Scheduler
 import org.http4s
 import org.http4s.client.Client
 import org.http4s.client.blaze.{BlazeClientConfig, Http1Client}
-import org.http4s.headers.`Content-Length`
+import org.http4s.headers.{`Content-Disposition`, `Content-Length`}
 import org.http4s.multipart._
-import org.http4s.{Method, Request, Response, Status, Uri}
+import org.http4s.{Headers, Method, Request, Response, Status, Uri}
 import pureconfig.modules.http4s.uriReader
 import pureconfig.{CamelCase, ConfigFieldMapping, ProductHint}
 
@@ -115,25 +117,35 @@ class CloudConnector(rootUri: Uri, httpClient: Client[Task], chunkSize: Int) ext
   private def stream[A](path: String, file: File, queryParams: Map[String, String] = Map.empty)(
       pf: PartialFunction[ServerResponse, Result[A]])(implicit sessionId: SessionId): Result[A] = {
 
-    val uri = path.split("/").foldLeft(rootUri)(_ / _).setQueryParams(queryParams.mapValues(Seq(_)))
-
-    val data = Multipart[Task](
-      Vector(
-        Part.fileData("file", file.name, fs2.io.readInputStream(Task(file.newInputStream), chunkSize)),
-        Part.formData("file-hash", file.sha256.toLowerCase()) // TODO calculate during processing
-      )
-    )
-
     EitherT
-      .right[AppException] {
-        Request[Task](
-          Method.POST,
-          uri
-        ).withHeaders(
-            data.headers.put(
-              http4s.Header("RBackup-Session-Pass", sessionId.value)
-            ))
-          .withBody(data)
+      .rightT[Task, AppException] {
+        file.newInputStream
+      }
+      .map(new InputStreamWithSha256(_))
+      .flatMap { inputStream =>
+        val uri = path.split("/").foldLeft(rootUri)(_ / _).setQueryParams(queryParams.mapValues(Seq(_)))
+
+        val data = Multipart[Task](
+          Vector(
+            Part.fileData("file", file.name, fs2.io.readInputStream(Task.now(inputStream: InputStream), chunkSize)),
+            Part(
+              Headers(`Content-Disposition`("form-data", Map("name" -> "file-hash"))),
+              Stream.eval(inputStream.sha256).map(_.toString).through(utf8Encode)
+            )
+          )
+        )
+
+        EitherT
+          .right[AppException] {
+            Request[Task](
+              Method.POST,
+              uri
+            ).withHeaders(
+                data.headers.put(
+                  http4s.Header("RBackup-Session-Pass", sessionId.value)
+                ))
+              .withBody(data)
+          }
       }
       .flatMap(exec(_)(pf))
   }

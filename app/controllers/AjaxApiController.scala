@@ -8,7 +8,7 @@ import io.circe.generic.auto._
 import io.circe.syntax._
 import io.circe.{Json, Printer}
 import javax.inject.{Inject, Singleton}
-import lib.{Command, CommandExecutor}
+import lib.{AppException, Command, CommandExecutor}
 import monix.execution.Scheduler
 import play.api.libs.circe.Circe
 import play.api.mvc.{AbstractController, Action, ControllerComponents}
@@ -41,9 +41,18 @@ class AjaxApiController @Inject()(cc: ControllerComponents, commandExecutor: Com
                 str
               }.as("application/json")
 
+            case Left(AppException.InvalidResponseException(_, _, desc, cause)) =>
+              logger.info("Error while executing the command", cause)
+              val resp = ErrorResponse(desc).asJson.pretty(JsonPrinter)
+              logger.debug(s"Sending AJAX error response: $resp")
+              BadRequest(resp)
+
             case Left(err) =>
               logger.info("Error while executing the command", err)
-              BadRequest(ErrorResponse(err).asJson.pretty(JsonPrinter))
+              val resp = ErrorResponse(err).asJson.pretty(JsonPrinter)
+              logger.debug(s"Sending AJAX error response: $resp")
+              BadRequest(resp)
+
           }
           .runAsync
 
