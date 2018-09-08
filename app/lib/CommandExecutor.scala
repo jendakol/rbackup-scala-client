@@ -12,7 +12,7 @@ import javax.inject.{Inject, Singleton}
 import lib.App._
 import lib.AppException.LoginRequired
 import lib.CirceImplicits._
-import lib.clientapi.{ClientStatus, FileTree, FileTreeNode}
+import lib.clientapi.{FileTree, FileTreeNode}
 import lib.serverapi.{DownloadResponse, LoginResponse, UploadResponse}
 import monix.eval.Task
 import monix.execution.Scheduler
@@ -24,6 +24,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
                                 filesRegistry: CloudFilesRegistry,
                                 dao: Dao,
                                 settings: Settings,
+                                stateManager: StateManager,
                                 @ConfigProperty("deviceId") deviceId: String)(implicit scheduler: Scheduler)
     extends StrictLogging {
 
@@ -35,7 +36,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
         }
 
     case StatusCommand =>
-      getStatus.map { status =>
+      stateManager.status.map { status =>
         parseSafe(s"""{ "success": true, "status": "${status.name}"}""")
       }
 
@@ -46,10 +47,10 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       cloudConnector.login(deviceId, username, password).flatMap {
         case LoginResponse.SessionCreated(sessionId) =>
           logger.info("Session on backend created")
-          settings.sessionId(Option(sessionId)).map(_ => parseSafe("""{ "success": true }"""))
+          stateManager.login(sessionId).map(_ => parseSafe("""{ "success": true }"""))
         case LoginResponse.SessionRecovered(sessionId) =>
           logger.info("Session on backend restored")
-          settings.sessionId(Option(sessionId)).map(_ => parseSafe("""{ "success": true }"""))
+          stateManager.login(sessionId).map(_ => parseSafe("""{ "success": true }"""))
         case LoginResponse.Failed =>
           pureResult(parseSafe("""{ "success": false }"""))
       }
@@ -145,33 +146,6 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
     //        Json.Null
     //      }
 
-  }
-
-  private def getStatus: Result[ClientStatus] = {
-    if (settings.initializing) {
-      pureResult(ClientStatus.Initializing)
-    } else {
-      for {
-        sessionId <- settings.sessionId
-        status <- sessionId match {
-          case Some(_) =>
-            cloudConnector.status
-              .map[ClientStatus] { _ =>
-                logger.debug("Status READY")
-                ClientStatus.Ready
-              }
-              .recover {
-                case e =>
-                  logger.debug("Server not available - status DISCONNECTED", e)
-                  ClientStatus.Disconnected
-              }
-
-          case None =>
-            logger.debug("Session ID not available - status INSTALLED")
-            pureResult(ClientStatus.Installed)
-        }
-      } yield status
-    }
   }
 
   private def withSessionId[A](f: SessionId => Result[A]): Result[A] = {
