@@ -63,7 +63,7 @@
                             this.$refs.fileMenu.open(event);
                         } else if (item.isDir) {
                             this.$refs.dirMenu.open(event);
-                        } else console.log("It's weird - not version nor dir nor file");
+                        }
 
                         event.preventDefault()
                     }

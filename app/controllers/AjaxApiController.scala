@@ -26,7 +26,7 @@ class AjaxApiController @Inject()(cc: ControllerComponents, commandExecutor: Com
   def exec: Action[JsonCommand] = Action.async(circe.tolerantJson[JsonCommand]) { req =>
     val jsonCommand = req.body
 
-    logger.debug(s"Received AJAX request: $jsonCommand")
+    logger.debug(s"Received AJAX request: ${jsonCommand.asJson.noSpaces}")
 
     decodeCommand(jsonCommand) match {
       case Right(command) =>
@@ -37,20 +37,20 @@ class AjaxApiController @Inject()(cc: ControllerComponents, commandExecutor: Com
             case Right(json) =>
               Ok {
                 val str = json.pretty(JsonPrinter)
-                logger.debug(s"Sending AJAX response: $str")
+                logger.debug(s"Sending AJAX response to ${jsonCommand.name}: $str")
                 str
               }.as("application/json")
 
             case Left(AppException.InvalidResponseException(_, _, desc, cause)) =>
-              logger.info("Error while executing the command", cause)
+              logger.info(s"Error while executing the command ${jsonCommand.name}", cause)
               val resp = ErrorResponse(desc).asJson.pretty(JsonPrinter)
-              logger.debug(s"Sending AJAX error response: $resp")
+              logger.debug(s"Sending AJAX error response to ${jsonCommand.name}: $resp")
               BadRequest(resp)
 
             case Left(err) =>
-              logger.info("Error while executing the command", err)
+              logger.info(s"Error while executing the command ${jsonCommand.name}", err)
               val resp = ErrorResponse(err).asJson.pretty(JsonPrinter)
-              logger.debug(s"Sending AJAX error response: $resp")
+              logger.debug(s"Sending AJAX error response to ${jsonCommand.name}: $resp")
               BadRequest(resp)
 
           }

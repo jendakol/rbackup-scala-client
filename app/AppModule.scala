@@ -32,11 +32,12 @@ class AppModule extends ScalaModule with PropertiesConfiguration with StrictLogg
     val cloudConnector = CloudConnector.fromConfig(config.getConfig("cloudConnector"))
     val dao = new Dao(executorService)
     val settings = new Settings(dao)
-    val stateManager = new StateManager(cloudConnector, dao, settings)
+    val stateManager = new StateManager(DeviceId(config.getString("deviceId")), cloudConnector, dao, settings)
 
     bind[CloudConnector].toInstance(cloudConnector)
     bind[Dao].toInstance(dao)
     bind[Settings].toInstance(settings)
+    bind[StateManager].toInstance(stateManager)
 
     bind[Scheduler].toInstance(scheduler)
 

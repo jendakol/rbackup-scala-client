@@ -25,3 +25,7 @@ object App {
   }
 
 }
+
+case class SessionId(value: String) extends AnyVal
+
+case class DeviceId(value: String) extends AnyVal

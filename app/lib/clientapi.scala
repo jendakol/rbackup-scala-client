@@ -4,6 +4,8 @@ import java.time.ZoneId
 
 import better.files.File
 import cats.data.NonEmptyList
+import cats.instances.string._
+import com.typesafe.scalalogging.StrictLogging
 import io.circe.Json
 import io.circe.generic.extras.auto._
 import io.circe.syntax._
@@ -12,7 +14,7 @@ import lib.CirceImplicits._
 import lib.clientapi.FileTreeNode.{Directory, RegularFile}
 import lib.serverapi.RemoteFile
 
-object clientapi {
+object clientapi extends StrictLogging {
 
   sealed trait ClientStatus {
     def name: String
@@ -38,15 +40,29 @@ object clientapi {
 
   }
 
-  case class FileTree(name: String, children: Option[Vector[FileTreeNode]]) {
+  case class FileTree(name: String, children: Option[NonEmptyList[FileTreeNode]]) {
     private val icon: String = "fas fa-folder icon-state-default"
 
-    private val childrenJson = children.map(_.map(_.toJson).mkString("[", ",", "]")).map(",\"children\":" + _).getOrElse("")
+    private val childrenJson = children.map(_.map(_.toJson).toList.mkString("[", ",", "]")).map(",\"children\":" + _).getOrElse("")
 
     private val displayName = if (name != "") name else "/"
 
-    def toJson: Json = parseSafe {
+    lazy val toJson: Json = parseSafe {
       s"""{"icon": "$icon", "isLeaf": false, "opened": false, "value": "$name/", "text": "$displayName", "isFile": false, "isVersion": false, "isDir": true$childrenJson}"""
+    }
+
+    def isEmpty: Boolean = children.isEmpty
+
+    lazy val allFiles: Option[NonEmptyList[RegularFile]] = {
+      def flatten(children: Option[NonEmptyList[FileTreeNode]]): List[RegularFile] =
+        children
+          .map(_.collect {
+            case f: RegularFile => List(f)
+            case Directory(_, _, dirChildren) => flatten(dirChildren)
+          }.flatten)
+          .getOrElse(List.empty)
+
+      NonEmptyList.fromList(flatten(children))
     }
 
     def +(other: FileTree): NonEmptyList[FileTree] = FileTree.combine(this, other)
@@ -54,13 +70,17 @@ object clientapi {
 
   object FileTree {
     def fromNodes(nodes: FileTreeNode*): Seq[FileTree] = {
+      logger.trace(s"Converting to file tree: $nodes")
+
       nodes
         .groupBy(n => extractTreeName(n.path))
-        .map { case (name, nds) => FileTree(name, Option(nds.toVector).filter(_.nonEmpty)) }
+        .map { case (name, nds) => FileTree(name, NonEmptyList.fromList(nds.toList)) }
         .toSeq
     }
 
     def fromRemoteFiles(files: Seq[RemoteFile]): Seq[FileTree] = {
+      logger.trace(s"Converting to file tree: $files")
+
       files.map(process).foldLeft[Seq[FileTree]](Seq.empty) {
         case (seq, ft) =>
           val (sameName, differentName) = seq.partition(_.name == ft.name)
@@ -80,14 +100,14 @@ object clientapi {
     private def combine(tree1: FileTree, tree2: FileTree): NonEmptyList[FileTree] = {
       def combineDirs(path: String,
                       name: String,
-                      children1: Option[Vector[FileTreeNode]],
-                      children2: Option[Vector[FileTreeNode]]): Directory = {
+                      children1: Option[NonEmptyList[FileTreeNode]],
+                      children2: Option[NonEmptyList[FileTreeNode]]): Directory = {
         (children1, children2) match {
           case (Some(ch), None) => Directory(path, name, Option(ch.sortBy(_.name)))
           case (None, Some(ch)) => Directory(path, name, Option(ch.sortBy(_.name)))
           case (None, None) => Directory(path, name, None)
           case (Some(ch1), Some(ch2)) =>
-            val mergedChildren = (ch1 ++ ch2)
+            val mergedChildren = (ch1 ::: ch2)
               .groupBy(_.path)
               .values
               .map { v =>
@@ -105,10 +125,10 @@ object clientapi {
                   v.head
                 }
               }
-              .toVector
+              .toList
               .sortBy(_.name)
 
-            Directory(path, name, Option(mergedChildren))
+            Directory(path, name, NonEmptyList.fromList(mergedChildren))
         }
       }
 
@@ -123,7 +143,7 @@ object clientapi {
             case (None, Some(ch)) => FileTree(treeName, Some(ch.sortBy(_.name)))
             case (None, None) => FileTree(treeName, None)
             case (Some(ch1), Some(ch2)) =>
-              val mergedChildren = (ch1 ++ ch2)
+              val mergedChildren = (ch1 ::: ch2)
                 .groupBy(_.path)
                 .values
                 .map { v =>
@@ -141,25 +161,28 @@ object clientapi {
                     v.head
                   }
                 }
-                .toVector
+                .toList
                 .sortBy(_.name)
 
-              FileTree(treeName, Option(mergedChildren))
+              FileTree(treeName, NonEmptyList.fromList(mergedChildren))
           }
         }
       }
     }
 
-    private def process(f: RemoteFile): FileTree = {
-      val parts = f.originalName.split("/")
+    private def process(file: RemoteFile): FileTree = {
+      val parts = file.originalName.split("/")
 
       val currentPath = parts.head
-      val originalPath = f.originalName
-      val versions = Option(f.versions.map(Version(f.originalName, _))).filter(_.nonEmpty)
+      val originalPath = file.originalName
+      val versions = Option(file.versions.map(Version(file.originalName, _))).filter(_.nonEmpty)
+
+      logger.debug(s"Processing $file")
 
       FileTree(
-        name = extractTreeName(f.originalName),
-        children = process(parts.tail, currentPath + "/" + parts.tail.head, originalPath, versions).map(Vector(_))
+        name = extractTreeName(file.originalName),
+        children =
+          process(parts.tail, currentPath + "/" + parts.tail.headOption.getOrElse("/"), originalPath, versions).map(NonEmptyList.of(_))
       )
     }
 
@@ -174,7 +197,7 @@ object clientapi {
             Directory(
               path = currentPath,
               name = parts.head,
-              children = process(parts.tail, currentPath + "/" + parts.tail.head, originalPath, versions).map(Vector(_))
+              children = process(parts.tail, currentPath + "/" + parts.tail.head, originalPath, versions).map(NonEmptyList.of(_))
             )
           }
       }
@@ -209,12 +232,12 @@ object clientapi {
 
   object FileTreeNode {
 
-    case class Directory(path: String, name: String, children: Option[Vector[FileTreeNode]]) extends FileTreeNode {
+    case class Directory(path: String, name: String, children: Option[NonEmptyList[FileTreeNode]]) extends FileTreeNode {
       private val icon: String = "fas fa-folder icon-state-default"
 
-      private val childrenJson = children.map(_.map(_.toJson).mkString("[", ",", "]")).map(",\"children\":" + _).getOrElse("")
+      private val childrenJson = children.map(_.map(_.toJson).toList.mkString("[", ",", "]")).map(",\"children\":" + _).getOrElse("")
 
-      def toJson: Json = parseSafe {
+      lazy val toJson: Json = parseSafe {
         s"""{"icon": "$icon", "isLeaf": false, "opened": false, "value": "$path", "text": "$name", "isFile": false, "isVersion": false, "isDir": true$childrenJson}"""
       }
     }

@@ -79,10 +79,10 @@ class CloudConnector(rootUri: Uri, httpClient: Client[Task], chunkSize: Int) ext
       }
   }
 
-  def listFiles(specificDevice: Option[String])(implicit sessionId: SessionId): Result[ListFilesResponse] = {
+  def listFiles(specificDevice: Option[DeviceId])(implicit sessionId: SessionId): Result[ListFilesResponse] = {
     logger.debug(s"Getting files list for device $specificDevice")
 
-    exec(authenticatedRequest(Method.GET, "list/files", specificDevice.map("device_id" -> _).toMap)) {
+    exec(authenticatedRequest(Method.GET, "list/files", specificDevice.map("device_id" -> _.value).toMap)) {
       case ServerResponse(Status.Ok, Some(json)) => json.as[Seq[RemoteFile]].toResult.map(FilesList)
       case ServerResponse(Status.NotFound, _) =>
         pureResult(ListFilesResponse.DeviceNotFound {
@@ -254,8 +254,6 @@ class CloudConnector(rootUri: Uri, httpClient: Client[Task], chunkSize: Int) ext
     }
   }
 }
-
-case class SessionId(value: String) extends AnyVal
 
 case class ServerResponse(status: Status, body: Option[Json])
 

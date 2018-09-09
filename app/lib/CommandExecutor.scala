@@ -109,11 +109,33 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       }
 
     case BackedUpFileListCommand =>
-      //TODO support more file trees
       dao.listAllFiles.map { files =>
         val fileTrees = FileTree.fromRemoteFiles(files.map(_.remoteFile))
 
-        fileTrees.map(_.toJson).asJson
+        logger.debug(s"Backed-up file trees: $fileTrees")
+
+        val nonEmptyTrees = fileTrees.filterNot(_.isEmpty)
+
+        if (nonEmptyTrees.nonEmpty) {
+          logger.trace {
+            val allFiles = nonEmptyTrees
+              .collect {
+                case ft @ FileTree(_, Some(_)) => ft.allFiles
+                case _ => None
+              }
+              .flatten
+              .flatMap(_.toList)
+
+            s"Returning list of ${allFiles.length} backed-up files"
+          }
+
+          nonEmptyTrees.map(_.toJson).asJson
+        } else {
+          logger.debug("Returning empty list of backed-up files")
+          parseSafe {
+            s"""[{"icon": "fas fa-info-circle", "isLeaf": true, "opened": false, "value": "_", "text": "No backed-up files yet", "isFile": false, "isVersion": false, "isDir": false}]"""
+          }
+        }
       }
 
     case DirListCommand(path) =>

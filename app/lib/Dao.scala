@@ -85,7 +85,39 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       }
   }
 
-  def updateFile(file: File, remoteFile: RemoteFile): Result[Unit] = EitherT {
+  def saveRemoteFile(remoteFile: RemoteFile): Result[Unit] = data.EitherT {
+    Task {
+      val lastVersion = remoteFile.versions
+        .sortBy(_.created.toEpochSecond)
+        .headOption
+        .getOrElse(throw new IllegalArgumentException("File with no versions"))
+
+      val fileSize = lastVersion.size
+
+      val mtime = lastVersion.created
+      val path = remoteFile.originalName
+      val remoteFileJson = remoteFile.asJson.noSpaces
+
+      logger.debug(s"Saving '$remoteFile' to DB")
+
+      DB.autoCommit { implicit session =>
+        sql"""
+             |INSERT INTO files (path, last_modified, size, remote_file)
+             |VALUES (${path}, ${mtime}, ${fileSize}, ${remoteFileJson})
+             |""".stripMargin.update().apply()
+      }
+
+      logger.debug(s"$remoteFile saved")
+
+      Right(())
+    }.executeOn(sch)
+      .asyncBoundary
+      .onErrorRecover {
+        case NonFatal(e) => Left(DbException("Creating file", e))
+      }
+  }
+
+  def updateFile(file: File, remoteFile: RemoteFile): Result[Unit] = data.EitherT {
     Task {
       val fileSize = file.size
       val mtime = file.lastModifiedTime
@@ -121,6 +153,22 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       .asyncBoundary
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Deleting file", e))
+      }
+  }
+
+  def deleteAllFiles(): Result[Unit] = EitherT {
+    Task {
+      logger.debug(s"Deleting all files")
+
+      DB.autoCommit { implicit session =>
+        sql"DELETE FROM files".executeUpdate().apply()
+      }
+
+      Right(())
+    }.executeOn(sch)
+      .asyncBoundary
+      .onErrorRecover {
+        case NonFatal(e) => Left(DbException("Deleting all files", e))
       }
   }
 

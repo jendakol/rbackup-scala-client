@@ -53,7 +53,7 @@ object serverapi {
 
     case class FilesList(files: Seq[RemoteFile]) extends ListFilesResponse
 
-    case class DeviceNotFound(deviceId: String) extends ListFilesResponse
+    case class DeviceNotFound(deviceId: DeviceId) extends ListFilesResponse
 
   }
 
