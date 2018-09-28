@@ -4,6 +4,7 @@ import java.io.{ByteArrayInputStream, InputStream}
 import java.net.ConnectException
 import java.nio.file.AccessDeniedException
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicLong
 
 import better.files.File
 import cats.data.EitherT
@@ -34,8 +35,8 @@ import scala.concurrent.duration.Duration
 
 class CloudConnector(rootUri: Uri, httpClient: Client[Task], chunkSize: Int) extends StrictLogging {
 
-  // TODO progress listeners
   // TODO retries
+  // TODO monitoring
 
   def registerAccount(username: String, password: String): Result[RegistrationResponse] = {
     logger.debug(s"Creating registration for username $username")
@@ -56,10 +57,16 @@ class CloudConnector(rootUri: Uri, httpClient: Client[Task], chunkSize: Int) ext
     }
   }
 
-  def upload(file: File)(implicit sessionId: SessionId): Result[UploadResponse] = {
+  def upload(file: File)(callback: Long => Unit)(implicit sessionId: SessionId): Result[UploadResponse] = {
     logger.debug(s"Uploading $file")
 
-    stream("upload", file, Map("file_path" -> file.path.toAbsolutePath.toString)) {
+    val bytesUploaded = new AtomicLong(0)
+
+    def uploadCallback(b: Int): Unit = {
+      callback.apply(bytesUploaded.addAndGet(b))
+    }
+
+    stream("upload", file, uploadCallback, Map("file_path" -> file.path.toAbsolutePath.toString)) {
       case ServerResponse(Status.Ok, Some(json)) => json.as[RemoteFile].toResult.map(UploadResponse.Uploaded)
       case ServerResponse(Status.PreconditionFailed, _) => pureResult(UploadResponse.Sha256Mismatch)
     }
@@ -114,14 +121,16 @@ class CloudConnector(rootUri: Uri, httpClient: Client[Task], chunkSize: Int) ext
       .putHeaders(http4s.Header("RBackup-Session-Pass", sessionId.value))
   }
 
-  private def stream[A](path: String, file: File, queryParams: Map[String, String] = Map.empty)(
+  private def stream[A](path: String, file: File, callback: Int => Unit, queryParams: Map[String, String] = Map.empty)(
       pf: PartialFunction[ServerResponse, Result[A]])(implicit sessionId: SessionId): Result[A] = {
 
     EitherT
       .rightT[Task, AppException] {
         file.newInputStream
       }
-      .map(new InputStreamWithSha256(_))
+      .map { i =>
+        new InputStreamWithSha256(new CallbackInputStream(i)(callback))
+      }
       .flatMap { inputStream =>
         val uri = path.split("/").foldLeft(rootUri)(_ / _).setQueryParams(queryParams.mapValues(Seq(_)))
 

@@ -3,7 +3,6 @@ package lib
 import better.files.File
 import cats.data.EitherT
 import com.typesafe.scalalogging.StrictLogging
-import controllers.WsApiController
 import io.circe.Json
 import io.circe.generic.extras.auto._
 import io.circe.parser._
@@ -20,7 +19,7 @@ import utils.ConfigProperty
 
 @Singleton
 class CommandExecutor @Inject()(cloudConnector: CloudConnector,
-                                wsApiController: WsApiController,
+                                filesHandler: FilesHandler,
                                 filesRegistry: CloudFilesRegistry,
                                 dao: Dao,
                                 settings: Settings,
@@ -63,7 +62,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
         val file = File(path)
 
         for {
-          r <- cloudConnector.upload(file)
+          r <- filesHandler.uploadNow(file)
           _ <- updateFilesRegistry(file, r)
         } yield {
           r match {
