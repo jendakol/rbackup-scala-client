@@ -23,12 +23,12 @@
 
         <vue-context ref="versionMenu">
             <ul>
-                <li @click="restore">Restore this version</li>
+                <li @click="restoreVersion(rightClicked)">Restore this version</li>
             </ul>
         </vue-context>
         <vue-context ref="fileMenu">
             <ul>
-                <li @click="alert('???')">Restore to last version</li>
+                <li @click="restoreLast">Restore to last version</li>
             </ul>
         </vue-context>
         <vue-context ref="dirMenu">
@@ -89,10 +89,10 @@
             }
         },
         methods: {
-            restore() {
-                let path = this.rightClicked.path;
-                let versionId = this.rightClicked.versionId;
-                let versionDateTime = this.rightClicked.text;
+            restoreVersion(version) {
+                let path = version.path;
+                let versionId = version.versionId;
+                let versionDateTime = version.text;
 
                 this.asyncActionWithNotification("download", {
                     path: path,
@@ -104,6 +104,12 @@
                         error(resp.message)
                     }
                 }));
+            },
+            restoreLast() {
+                let versions = this.rightClicked.children;
+                let last = versions[versions.length - 1];
+
+                this.restoreVersion(last)
             },
             receiveWs(message) {
                 switch (message.type) {
