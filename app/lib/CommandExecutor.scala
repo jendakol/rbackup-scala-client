@@ -33,15 +33,20 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
             parse(s"""{"serverResponse": "$str"}""").toResult
           }
       }
+
     case StatusCommand =>
       stateManager.status.map { status =>
         parseSafe(s"""{ "success": true, "status": "${status.name}", "data": ${status.data}}""")
       }
 
     case RegisterCommand(host, username, password) =>
+      // TODO check the URL
+
       cloudConnector.registerAccount(host, username, password).map(RegisterCommand.toResponse)
 
     case LoginCommand(host, username, password) =>
+      // TODO check the URL
+
       cloudConnector.login(host, deviceId, username, password).flatMap {
         case LoginResponse.SessionCreated(sessionId) =>
           logger.info("Session on backend created")
