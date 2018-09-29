@@ -29,21 +29,22 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
 
   def execute(command: Command): Result[Json] = command match {
     case PingCommand =>
-      cloudConnector.status
-        .flatMap { str =>
-          parse(s"""{"serverResponse": "$str"}""").toResult
-        }
-
+      withSession { implicit session =>
+        cloudConnector.status
+          .flatMap { str =>
+            parse(s"""{"serverResponse": "$str"}""").toResult
+          }
+      }
     case StatusCommand =>
       stateManager.status.map { status =>
         parseSafe(s"""{ "success": true, "status": "${status.name}"}""")
       }
 
-    case RegisterCommand(username, password) =>
-      cloudConnector.registerAccount(username, password).map(RegisterCommand.toResponse)
+    case RegisterCommand(host, username, password) =>
+      cloudConnector.registerAccount(host, username, password).map(RegisterCommand.toResponse)
 
-    case LoginCommand(username, password) =>
-      cloudConnector.login(deviceId, username, password).flatMap {
+    case LoginCommand(host, username, password) =>
+      cloudConnector.login(host, deviceId, username, password).flatMap {
         case LoginResponse.SessionCreated(sessionId) =>
           logger.info("Session on backend created")
           stateManager.login(sessionId).map(_ => parseSafe("""{ "success": true }"""))
@@ -55,10 +56,10 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       }
 
     case LogoutCommand =>
-      settings.sessionId(None).map(_ => parseSafe("""{ "success": true }"""))
+      settings.session(None).map(_ => parseSafe("""{ "success": true }"""))
 
     case UploadManually(path) =>
-      withSessionId { implicit sessionId =>
+      withSession { implicit session =>
         val file = File(path)
 
         for {
@@ -75,7 +76,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
     case Download(path, versionId) =>
       logger.debug(s"Downloading $path with versionId $versionId")
 
-      withSessionId { implicit sid =>
+      withSession { implicit session =>
         filesRegistry
           .get(File(path))
           .map(_.flatMap { file =>
@@ -169,8 +170,8 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
 
   }
 
-  private def withSessionId[A](f: SessionId => Result[A]): Result[A] = {
-    settings.sessionId.flatMap {
+  private def withSession[A](f: ServerSession => Result[A]): Result[A] = {
+    settings.session.flatMap {
       case Some(sid) => f(sid)
       case None => failedResult(LoginRequired())
     }

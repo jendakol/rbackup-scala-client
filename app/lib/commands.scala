@@ -34,9 +34,9 @@ case object BackedUpFileListCommand extends Command
 
 //case class SaveFileTreeCommand(files: Seq[FileFromTree]) extends Command
 
-case class RegisterCommand(username: String, password: String) extends Command
+case class RegisterCommand(host: String, username: String, password: String) extends Command
 
-case class LoginCommand(username: String, password: String) extends Command
+case class LoginCommand(host: String, username: String, password: String) extends Command
 
 case object LogoutCommand extends Command
 

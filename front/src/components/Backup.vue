@@ -4,7 +4,7 @@
                   whole-row></v-jstree>
 
         <BottomBar>
-            <b-btn @click="saveBackupSelection" variant="success">Save</b-btn>
+            <v-btn @click="saveBackupSelection" color="success">Save</v-btn>
         </BottomBar>
 
         <vue-context ref="fileMenu">

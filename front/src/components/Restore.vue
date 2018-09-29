@@ -1,7 +1,25 @@
 <template>
     <div>
 
-        <v-jstree :data="fileTreeData" :item-events="itemEvents" :async="loadData"></v-jstree>
+        <div v-if="fileTreeData.length === 0">
+            <v-container text-xs-center>
+                <v-layout row wrap>
+                    <v-flex>
+                        <v-card app>
+                            <v-card-text class="px-0">
+                                <v-icon>info</v-icon>
+                                No items yet, backup something first ;-)
+
+                                {{ fileTreeData }}
+                            </v-card-text>
+                        </v-card>
+                    </v-flex>
+                </v-layout>
+            </v-container>
+        </div>
+        <div v-else>
+            <v-jstree :data="fileTreeData" :item-events="itemEvents" :async="loadData"></v-jstree>
+        </div>
 
         <vue-context ref="versionMenu">
             <ul>
@@ -38,19 +56,19 @@
             VueContext
         },
         created() {
-            this.registerWsListener(this.receiveWs)
+            this.registerWsListener(this.receiveWs);
+            this.loadData(null, (items) => {
+                this.fileTreeData = items;
+            })
         },
         data() {
             return {
                 fileTreeData: [],
                 loadData: (oriNode, resolve) => {
-                    let path = oriNode.data.value;
-
                     this.ajax("backedUpFileList", {})
                         .then(response => {
                             resolve(response)
                         })
-
                 },
                 rightClicked: null,
                 itemEvents: {

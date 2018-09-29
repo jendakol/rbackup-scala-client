@@ -1,5 +1,6 @@
 import Vue from 'vue';
 import App from './components/App.vue';
+import Vuetify from 'vuetify'
 import '../sass/style.scss';
 import Snotify, { SnotifyPosition } from 'vue-snotify'
 
@@ -14,11 +15,7 @@ const options = {
 
 Vue.use(Snotify, options);
 
-import BootstrapVue from 'bootstrap-vue'
-
-Vue.use(BootstrapVue);
-
-import 'bootstrap/dist/css/bootstrap.css'
-import 'bootstrap-vue/dist/bootstrap-vue.css'
+import 'vuetify/dist/vuetify.min.css'
+Vue.use(Vuetify);
 
 new Vue(App).$mount('#app');

@@ -1,5 +1,5 @@
 <template v-else>
-    <div id="this">
+    <v-app>
         <div>
             <div v-if="clientStatus === 'INSTALLED'">
                 <LoginForm v-on:login="updateStatus" :ajax="this.ajax" :asyncActionWithNotification="this.asyncActionWithNotification"/>
@@ -17,7 +17,7 @@
         </div>
 
         <vue-snotify></vue-snotify>
-    </div>
+    </v-app>
 
 </template>
 
@@ -42,8 +42,6 @@
             setTimeout(() => {
                 this.updateStatus(); // TODO timeout?!
             }, 100);
-
-            this.ajax("backedUpFileList")
         },
         methods: {
             ajax(name, data) {

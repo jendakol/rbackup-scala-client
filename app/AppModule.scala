@@ -1,5 +1,6 @@
 import java.util.concurrent.Executors
 
+import com.avast.metrics.scalaapi.Monitor
 import com.typesafe.config._
 import com.typesafe.scalalogging.StrictLogging
 import lib._
@@ -27,6 +28,8 @@ class AppModule extends ScalaModule with PropertiesConfiguration with StrictLogg
     val executorService = Executors.newCachedThreadPool()
     implicit val scheduler: SchedulerService = Scheduler(executorService) // TODO
 
+    val rootMonitor = Monitor.noOp()
+
     bind[AllowedApiOrigins].toInstance(AllowedApiOrigins(config.getStringList("allowedWsApiOrigins").asScala))
 
     val cloudConnector = CloudConnector.fromConfig(config.getConfig("cloudConnector"))
@@ -38,6 +41,8 @@ class AppModule extends ScalaModule with PropertiesConfiguration with StrictLogg
     bind[Dao].toInstance(dao)
     bind[Settings].toInstance(settings)
     bind[StateManager].toInstance(stateManager)
+
+    bind[Monitor].annotatedWithName("FilesHandler").toInstance(rootMonitor.named("fileshandler"))
 
     bind[Scheduler].toInstance(scheduler)
 

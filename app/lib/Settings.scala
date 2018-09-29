@@ -2,19 +2,23 @@ package lib
 
 import java.util.concurrent.atomic.AtomicReference
 
+import io.circe.generic.extras.auto._
+import io.circe.parser._
+import io.circe.syntax._
 import lib.App._
+import lib.CirceImplicits._
 
 class Settings(dao: Dao) {
-  private val _sessionId = new AtomicReference[Option[SessionId]](None)
+  private val _session = new AtomicReference[Option[ServerSession]](None)
 
-  def sessionId: Result[Option[SessionId]] = {
-    getOrLoad("sessionId", _sessionId, SessionId)
+  def session: Result[Option[ServerSession]] = {
+    getOrLoad("sessionId", _session, decode[ServerSession](_).getOrElse(throw new IllegalStateException("Invalid format of session in DB")))
   }
 
-  def sessionId(sessionId: Option[SessionId]): Result[Unit] = {
-    _sessionId.set(sessionId)
-    sessionId match {
-      case Some(SessionId(value)) => set("sessionId", value)
+  def session(session: Option[ServerSession]): Result[Unit] = {
+    _session.set(session)
+    session match {
+      case Some(ss: ServerSession) => set("sessionId", ss.asJson.noSpaces)
       case None => delete("sessionId")
     }
   }

@@ -27,9 +27,9 @@ object serverapi {
 
   object LoginResponse {
 
-    case class SessionCreated(sessionId: SessionId) extends LoginResponse
+    case class SessionCreated(session: ServerSession) extends LoginResponse
 
-    case class SessionRecovered(sessionId: SessionId) extends LoginResponse
+    case class SessionRecovered(session: ServerSession) extends LoginResponse
 
     case object Failed extends LoginResponse
 

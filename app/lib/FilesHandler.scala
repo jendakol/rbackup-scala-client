@@ -3,52 +3,42 @@ package lib
 import java.util.concurrent.atomic.AtomicInteger
 
 import better.files.File
-import cats.data.EitherT
-import cats.effect.Effect
-import cats.syntax.all._
 import com.avast.metrics.scalaapi.Monitor
 import com.typesafe.scalalogging.StrictLogging
 import controllers.{WsApiController, WsMessage}
-import fs2.async.mutable.Queue
-import fs2.io.file
-import io.circe.Json
 import io.circe.generic.extras.auto._
 import io.circe.syntax._
-import fs2.io
-import javax.inject.Inject
+import javax.inject.{Inject, Named}
 import lib.App._
 import lib.CirceImplicits._
 import lib.serverapi.UploadResponse
-import monix.eval.Task
 import monix.execution.Scheduler
 import utils.ConfigProperty
-
-import scala.concurrent.duration.FiniteDuration
 
 class FilesHandler @Inject()(cloudConnector: CloudConnector,
                              wsApiController: WsApiController,
                              settings: Settings,
                              @ConfigProperty("fileHandler.uploadParallelism") uploadParallelism: Int,
                              @ConfigProperty("fileHandler.retries") retries: Int,
-                             monitor: Monitor)(implicit sch: Scheduler, F: Effect[Task])
+                             @Named("FilesHandler") monitor: Monitor)(implicit sch: Scheduler)
     extends AutoCloseable
     with StrictLogging {
 
   private val uploadedMeter = monitor.meter("uploaded")
   private val uploadedFailedMeter = monitor.meter("uploaded")
 
-//  def uploadLater(file: File): Task[Unit] = ???
-//
-//  private def handleFile(file: File): Task[FileHandlingResult] = {}
-//
-//  private def upload(fileResult: FileHandlingResult)(implicit sessionId: SessionId): Task[Unit] = fileResult match {
-//    case FileHandlingResult.ToBeUploaded(file) =>
-//      upload(file)
-//
-//    case FileHandlingResult.Handled => Task.unit
-//  }
+  //  def uploadLater(file: File): Task[Unit] = ???
+  //
+  //  private def handleFile(file: File): Task[FileHandlingResult] = {}
+  //
+  //  private def upload(fileResult: FileHandlingResult)(implicit sessionId: SessionId): Task[Unit] = fileResult match {
+  //    case FileHandlingResult.ToBeUploaded(file) =>
+  //      upload(file)
+  //
+  //    case FileHandlingResult.Handled => Task.unit
+  //  }
 
-  def uploadNow(file: File)(implicit sessionId: SessionId): Result[UploadResponse] = {
+  def uploadNow(file: File)(implicit session: ServerSession): Result[UploadResponse] = {
     val attemptCounter = new AtomicInteger(0)
 
     cloudConnector

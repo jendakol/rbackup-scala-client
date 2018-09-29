@@ -9,15 +9,15 @@ import lib.serverapi.ListFilesResponse
 
 class StateManager(deviceId: DeviceId, cloudConnector: CloudConnector, dao: Dao, settings: Settings) extends StrictLogging {
   def appInit(): Result[Unit] = {
-    settings.sessionId.flatMap {
+    settings.session.flatMap {
       case Some(sessionId) => downloadRemoteFilesList(sessionId)
       case None => pureResult(())
     }
   }
 
-  def login(implicit sessionId: SessionId): Result[Unit] = {
+  def login(implicit session: ServerSession): Result[Unit] = {
     for {
-      _ <- settings.sessionId(Option(sessionId))
+      _ <- settings.session(Option(session))
       _ <- downloadRemoteFilesList
     } yield {
       ()
@@ -29,10 +29,11 @@ class StateManager(deviceId: DeviceId, cloudConnector: CloudConnector, dao: Dao,
       pureResult(ClientStatus.Initializing)
     } else {
       for {
-        sessionId <- settings.sessionId
-        status <- sessionId match {
-          case Some(_) =>
-            cloudConnector.status
+        session <- settings.session
+        status <- session match {
+          case Some(ss) =>
+            cloudConnector
+              .status(ss)
               .map[ClientStatus] { _ =>
                 logger.debug("Status READY")
                 ClientStatus.Ready
@@ -51,7 +52,7 @@ class StateManager(deviceId: DeviceId, cloudConnector: CloudConnector, dao: Dao,
     }
   }
 
-  def downloadRemoteFilesList(implicit sessionId: SessionId): Result[Unit] = {
+  def downloadRemoteFilesList(implicit session: ServerSession): Result[Unit] = {
     logger.debug("Downloading remote files list")
 
     for {

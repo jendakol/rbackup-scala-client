@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicLong
 
 import better.files.File
 import cats.data.EitherT
+import cats.syntax.either._
 import com.typesafe.config.{Config, ConfigFactory}
 import com.typesafe.scalalogging.StrictLogging
 import fs2.Stream
@@ -33,31 +34,39 @@ import pureconfig.{CamelCase, ConfigFieldMapping, ProductHint}
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
-class CloudConnector(rootUri: Uri, httpClient: Client[Task], chunkSize: Int) extends StrictLogging {
+class CloudConnector(httpClient: Client[Task], chunkSize: Int) extends StrictLogging {
 
   // TODO retries
   // TODO monitoring
 
-  def registerAccount(username: String, password: String): Result[RegistrationResponse] = {
+  def registerAccount(host: String, username: String, password: String): Result[RegistrationResponse] = {
     logger.debug(s"Creating registration for username $username")
 
-    exec(plainRequest(Method.GET, "account/register", Map("username" -> username, "password" -> password))) {
-      case ServerResponse(Status.Created, Some(json)) => json.as[RegistrationResponse.Created].toResult
-      case ServerResponse(Status.Conflict, _) => pureResult(RegistrationResponse.AlreadyExists)
+    plainRequestToHost(Method.GET, host, "account/register", Map("username" -> username, "password" -> password)).flatMap { request =>
+      exec(request) {
+        case ServerResponse(Status.Created, Some(json)) => json.as[RegistrationResponse.Created].toResult
+        case ServerResponse(Status.Conflict, _) => pureResult(RegistrationResponse.AlreadyExists)
+      }
     }
   }
 
-  def login(deviceId: String, username: String, password: String): Result[LoginResponse] = {
+  def login(host: String, deviceId: String, username: String, password: String): Result[LoginResponse] = {
     logger.debug(s"Logging device $deviceId with username $username")
 
-    exec(plainRequest(Method.GET, "account/login", Map("device_id" -> deviceId, "username" -> username, "password" -> password))) {
-      case ServerResponse(Status.Created, Some(json)) => json.as[LoginResponse.SessionCreated].toResult
-      case ServerResponse(Status.Ok, Some(json)) => json.as[LoginResponse.SessionRecovered].toResult
-      case ServerResponse(Status.Unauthorized, _) => pureResult(LoginResponse.Failed)
-    }
+    plainRequestToHost(Method.GET, host, "account/login", Map("device_id" -> deviceId, "username" -> username, "password" -> password))
+      .flatMap { request =>
+        exec(request) {
+          case ServerResponse(Status.Created, Some(json)) =>
+            json.hcursor.get[String]("session_id").toResult[String].map(sid => LoginResponse.SessionCreated(ServerSession(host, sid)))
+          case ServerResponse(Status.Ok, Some(json)) =>
+            json.hcursor.get[String]("session_id").toResult[String].map(sid => LoginResponse.SessionRecovered(ServerSession(host, sid)))
+          case ServerResponse(Status.Unauthorized, _) =>
+            pureResult(LoginResponse.Failed)
+        }
+      }
   }
 
-  def upload(file: File)(callback: Long => Unit)(implicit sessionId: SessionId): Result[UploadResponse] = {
+  def upload(file: File)(callback: Long => Unit)(implicit session: ServerSession): Result[UploadResponse] = {
     logger.debug(s"Uploading $file")
 
     val bytesUploaded = new AtomicLong(0)
@@ -72,91 +81,115 @@ class CloudConnector(rootUri: Uri, httpClient: Client[Task], chunkSize: Int) ext
     }
   }
 
-  def download(fileVersion: RemoteFileVersion, dest: File)(implicit sessionId: SessionId): Result[DownloadResponse] = EitherT {
+  def download(fileVersion: RemoteFileVersion, dest: File)(implicit session: ServerSession): Result[DownloadResponse] = {
     logger.debug(s"Downloading file $fileVersion")
 
-    httpClient
-      .fetch(authenticatedRequest(Method.GET, "download", Map("file_version_id" -> fileVersion.version.toString))) {
-        case resp if resp.status == Status.Ok => receiveStreamedFile(fileVersion, dest, resp)
-        case resp if resp.status == Status.NotFound => Task.now(Right(DownloadResponse.FileVersionNotFound(fileVersion)))
-      }
-      .onErrorRecover {
-        case e: ConnectException => Left(ServerNotResponding(e))
-        case e: TimeoutException => Left(ServerNotResponding(e))
+    authenticatedRequest(Method.GET, "download", Map("file_version_id" -> fileVersion.version.toString))
+      .flatMapF { request =>
+        httpClient
+          .fetch(request) {
+            case resp if resp.status == Status.Ok => receiveStreamedFile(fileVersion, dest, resp)
+            case resp if resp.status == Status.NotFound => Task.now(Right(DownloadResponse.FileVersionNotFound(fileVersion)))
+          }
+          .onErrorRecover {
+            case e: ConnectException => Left(ServerNotResponding(e))
+            case e: TimeoutException => Left(ServerNotResponding(e))
+          }
       }
   }
 
-  def listFiles(specificDevice: Option[DeviceId])(implicit sessionId: SessionId): Result[ListFilesResponse] = {
+  def listFiles(specificDevice: Option[DeviceId])(implicit session: ServerSession): Result[ListFilesResponse] = {
     logger.debug(s"Getting files list for device $specificDevice")
 
-    exec(authenticatedRequest(Method.GET, "list/files", specificDevice.map("device_id" -> _.value).toMap)) {
-      case ServerResponse(Status.Ok, Some(json)) => json.as[Seq[RemoteFile]].toResult.map(FilesList)
-      case ServerResponse(Status.NotFound, _) =>
-        pureResult(ListFilesResponse.DeviceNotFound {
-          specificDevice.getOrElse(throw new IllegalStateException("Must not be empty"))
-        })
-    }
+    authenticatedRequest(Method.GET, "list/files", specificDevice.map("device_id" -> _.value).toMap)
+      .flatMap { request =>
+        exec(request) {
+          case ServerResponse(Status.Ok, Some(json)) => json.as[Seq[RemoteFile]].toResult.map(FilesList)
+          case ServerResponse(Status.NotFound, _) =>
+            pureResult(ListFilesResponse.DeviceNotFound {
+              specificDevice.getOrElse(throw new IllegalStateException("Must not be empty"))
+            })
+        }
+      }
   }
 
-  def status: Result[String] = {
+  def status(implicit session: ServerSession): Result[String] = {
     logger.debug("Requesting status from server")
 
-    exec(plainRequest(Method.GET, "status")) {
-      case ServerResponse(Status.Ok, Some(json)) => json.hcursor.get[String]("status").toResult
-    }
+    plainRequest(Method.GET, "status")
+      .flatMap { request =>
+        exec(request) {
+          case ServerResponse(Status.Ok, Some(json)) => json.hcursor.get[String]("status").toResult
+        }
+      }
   }
 
-  private def plainRequest[A](method: Method, path: String, queryParams: Map[String, String] = Map.empty): Request[Task] = {
-    val uri = path.split("/").foldLeft(rootUri)(_ / _).setQueryParams(queryParams.mapValues(Seq(_)))
+  private def plainRequestToHost[A](method: Method,
+                                    host: String,
+                                    path: String,
+                                    queryParams: Map[String, String] = Map.empty): Result[Request[Task]] = {
+    EitherT
+      .fromEither[Task](Uri.fromString(host).leftMap[AppException](AppException.InvalidArgument("Could not parse provided host", _)))
+      .map { rootUri =>
+        val uri = path.split("/").foldLeft(rootUri)(_ / _).setQueryParams(queryParams.mapValues(Seq(_)))
 
-    Request[Task](
-      method,
-      uri
-    )
+        Request[Task](
+          method,
+          uri
+        )
+      }
+  }
+
+  private def plainRequest[A](method: Method, path: String, queryParams: Map[String, String] = Map.empty)(
+      implicit session: ServerSession): Result[Request[Task]] = {
+    plainRequestToHost(method, session.host, path, queryParams)
   }
 
   private def authenticatedRequest[A](method: Method, path: String, queryParams: Map[String, String] = Map.empty)(
-      implicit sessionId: SessionId): Request[Task] = {
+      implicit session: ServerSession): EitherT[Task, AppException, Request[Task]] = {
     plainRequest(method, path, queryParams)
-      .putHeaders(http4s.Header("RBackup-Session-Pass", sessionId.value))
+      .map(_.putHeaders(http4s.Header("RBackup-Session-Pass", session.sessionId)))
   }
 
   private def stream[A](path: String, file: File, callback: Int => Unit, queryParams: Map[String, String] = Map.empty)(
-      pf: PartialFunction[ServerResponse, Result[A]])(implicit sessionId: SessionId): Result[A] = {
+      pf: PartialFunction[ServerResponse, Result[A]])(implicit session: ServerSession): Result[A] = {
 
-    EitherT
-      .rightT[Task, AppException] {
-        file.newInputStream
-      }
-      .map { i =>
-        new InputStreamWithSha256(new CallbackInputStream(i)(callback))
-      }
-      .flatMap { inputStream =>
-        val uri = path.split("/").foldLeft(rootUri)(_ / _).setQueryParams(queryParams.mapValues(Seq(_)))
+    def createRequest(rootUri: Uri, inputStream: InputStreamWithSha256): EitherT[Task, AppException, Request[Task]] = {
+      val uri = path.split("/").foldLeft(rootUri)(_ / _).setQueryParams(queryParams.mapValues(Seq(_)))
 
-        val data = Multipart[Task](
-          Vector(
-            Part.fileData("file", file.name, fs2.io.readInputStream(Task.now(inputStream: InputStream), chunkSize)),
-            Part(
-              Headers(`Content-Disposition`("form-data", Map("name" -> "file-hash"))),
-              Stream.eval(inputStream.sha256).map(_.toString).through(utf8Encode)
-            )
+      val data = Multipart[Task](
+        Vector(
+          Part.fileData("file", file.name, fs2.io.readInputStream(Task.now(inputStream: InputStream), chunkSize)),
+          Part(
+            Headers(`Content-Disposition`("form-data", Map("name" -> "file-hash"))),
+            Stream.eval(inputStream.sha256).map(_.toString).through(utf8Encode)
           )
         )
+      )
 
-        EitherT
-          .right[AppException] {
-            Request[Task](
-              Method.POST,
-              uri
-            ).withHeaders(
-                data.headers.put(
-                  http4s.Header("RBackup-Session-Pass", sessionId.value)
-                ))
-              .withBody(data)
-          }
-      }
-      .flatMap(exec(_)(pf))
+      EitherT
+        .right[AppException] {
+          Request[Task](
+            Method.POST,
+            uri
+          ).withHeaders(
+              data.headers.put(
+                http4s.Header("RBackup-Session-Pass", session.sessionId)
+              ))
+            .withBody(data)
+        }
+    }
+
+    for {
+      rootUri <- EitherT.fromEither[Task](
+        Uri.fromString(session.host).leftMap[AppException](AppException.InvalidArgument("Could not parse provided host", _)))
+      fis <- EitherT.rightT[Task, AppException](file.newInputStream)
+      inputStream = new InputStreamWithSha256(new CallbackInputStream(fis)(callback))
+      request <- createRequest(rootUri, inputStream)
+      result <- exec(request)(pf)
+    } yield {
+      result
+    }
   }
 
   private def exec[A](request: Request[Task])(pf: PartialFunction[ServerResponse, Result[A]]): Result[A] = EitherT {
@@ -279,12 +312,11 @@ object CloudConnector {
     val conf = pureconfig.loadConfigOrThrow[CloudConnectorConfiguration](config.withFallback(DefaultConfig))
     val httpClient: Client[Task] = Await.result(Http1Client[Task](conf.toBlazeConfig.copy(executionContext = sch)).runAsync, Duration.Inf)
 
-    new CloudConnector(conf.uri, httpClient, conf.chunkSize)
+    new CloudConnector(httpClient, conf.chunkSize)
   }
 }
 
-private case class CloudConnectorConfiguration(uri: Uri,
-                                               chunkSize: Int,
+private case class CloudConnectorConfiguration(chunkSize: Int,
                                                requestTimeout: Duration,
                                                socketTimeout: Duration,
                                                responseHeaderTimeout: Duration,

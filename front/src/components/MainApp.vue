@@ -1,76 +1,72 @@
 <template>
-    <div id="this">
-        <b-navbar toggleable="md" type="dark" variant="dark">
+    <v-app>
+        <v-navigation-drawer app dark>
+            <v-toolbar flat>
+                <v-list>
+                    <v-list-tile>
+                        <v-list-tile-title class="title">
+                            RBackup
+                        </v-list-tile-title>
+                    </v-list-tile>
+                </v-list>
 
-            <b-navbar-toggle target="nav_collapse"></b-navbar-toggle>
+                <v-menu>
+                    <v-btn
+                            slot="activator"
+                            color="secondary"
+                            app>
+                        <v-icon>account_circle</v-icon>
+                    </v-btn>
+                    <v-list>
+                        <v-list-tile
+                                v-for="(item, index) in accountMenu"
+                                :key="index"
+                                @click="item.action">
+                            <v-list-tile-title>{{ item.title }}</v-list-tile-title>
+                        </v-list-tile>
+                    </v-list>
+                </v-menu>
+            </v-toolbar>
 
-            <b-navbar-brand href="#">RBackup</b-navbar-brand>
+            <v-list dense class="pt-0">
+                <v-list-tile
+                        v-for="item in drawerMenu"
+                        :key="item.title"
+                        @click="item.action">
+                    <v-list-tile-action>
+                        <v-icon>{{ item.icon }}</v-icon>
+                    </v-list-tile-action>
 
-            <b-collapse is-nav id="nav_collapse">
+                    <v-list-tile-content>
+                        <v-list-tile-title>{{ item.title }}</v-list-tile-title>
+                    </v-list-tile-content>
+                </v-list-tile>
+            </v-list>
+        </v-navigation-drawer>
 
-                <!--<b-navbar-nav>-->
-                <!--<b-nav-item href="#">Link</b-nav-item>-->
-                <!--<b-nav-item href="#" disabled>Disabled</b-nav-item>-->
-                <!--</b-navbar-nav>-->
+        <v-content>
+            <div class="content">
+                <div>
+                    <div>
+                        <p v-if="isConnected">
+                            <Status v-if="visiblePage === 'status'" :ajax="this.ajax" :registerWsListener="this.addWsListener"
+                                    :asyncActionWithNotification="this.asyncActionWithNotification"/>
 
-                <!-- Right aligned nav items -->
-                <b-navbar-nav class="ml-auto">
+                            <Backup v-if="visiblePage === 'backup'" :ajax="this.ajax" :registerWsListener="this.addWsListener"
+                                    :asyncActionWithNotification="this.asyncActionWithNotification"/>
 
-                    <b-nav-item-dropdown right>
-                        <template slot="button-content">
-                            <em>Account</em>
-                        </template>
-                        <b-dropdown-item href="#" @click="logout">Logout</b-dropdown-item>
-                    </b-nav-item-dropdown>
-                </b-navbar-nav>
+                            <Restore v-if="visiblePage === 'restore'" :ajax="this.ajax" :registerWsListener="this.addWsListener"
+                                     :asyncActionWithNotification="this.asyncActionWithNotification"/>
+                        </p>
+                        <p v-else>
+                            Waiting for connection to the server...<br>
+                        </p>
 
-            </b-collapse>
-        </b-navbar>
-
-        <div>
-            <div>
-                <p v-if="isConnected">
-                    <b-tabs class="tabs">
-                        <b-tab active>
-                            <template slot="title">
-                                <span class="tabTitle">
-                                <i class="fas fa-info"></i>Status</span>
-                            </template>
-
-                            <div class="tabContent">
-                                <Status :ajax="this.ajax" :asyncActionWithNotification="this.asyncActionWithNotification"/>
-                            </div>
-                        </b-tab>
-                        <b-tab>
-                            <template slot="title">
-                                <span class="tabTitle">
-                                <i class="fas fa-upload"></i>Backup</span>
-                            </template>
-
-                            <div class="tabContent">
-                                <Backup :ajax="this.ajax" :registerWsListener="this.addWsListener" :asyncActionWithNotification="this.asyncActionWithNotification"/>
-                            </div>
-                        </b-tab>
-                        <b-tab>
-                            <template slot="title">
-                                <span class="tabTitle">
-                                <i class="fas fa-undo"></i>Restore</span>
-                            </template>
-
-                            <div class="tabContent">
-                                <Restore :ajax="this.ajax" :registerWsListener="this.addWsListener" :asyncActionWithNotification="this.asyncActionWithNotification"/>
-                            </div>
-                        </b-tab>
-                    </b-tabs>
-                </p>
-                <p v-else>
-                    Waiting for connection to the server...<br>
-                </p>
-
+                    </div>
+                </div>
             </div>
-
-        </div>
-    </div>
+        </v-content>
+    </v-app>
 </template>
 
 <script>
@@ -101,7 +97,32 @@
                 ws: null,
                 isConnected: false,
                 connectionCheck: null,
-                wsListeners: Array()
+                wsListeners: Array(),
+                visiblePage: "restore",
+                drawerMenu: [
+                    {
+                        title: 'Status', icon: 'dashboard', action: () => {
+                            this.visiblePage = "status"
+                        }
+                    },
+                    {
+                        title: 'Backup', icon: 'cloud_upload', action: () => {
+                            this.visiblePage = "backup"
+                        }
+                    },
+                    {
+                        title: 'Restore', icon: 'cloud_download', action: () => {
+                            this.visiblePage = "restore"
+                        }
+                    }
+                ],
+                accountMenu: [
+                    {
+                        title: 'Logout', icon: 'dashboard', action: () => {
+                            this.logout()
+                        }
+                    },
+                ]
             }
         },
         created: function () {
@@ -146,10 +167,10 @@
                     }
                 }));
             },
-            addWsListener(listener){
+            addWsListener(listener) {
                 this.wsListeners.push(listener)
             },
-            receiveWs(message){
+            receiveWs(message) {
                 this.wsListeners.forEach((listener) => {
                     listener(message)
                 })
@@ -159,19 +180,7 @@
 </script>
 
 <style scoped lang="scss">
-    span.tabTitle {
-        color: black !important;
-    }
-
-    span.tabTitle .fas {
-        margin-right: 5px;
-    }
-
-    .tabs {
-        margin: 5px;
-    }
-
-    .tabContent {
+    .content {
         padding: 10px;
     }
 </style>
