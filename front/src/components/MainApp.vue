@@ -98,7 +98,7 @@
                 isConnected: false,
                 connectionCheck: null,
                 wsListeners: Array(),
-                visiblePage: "restore",
+                visiblePage: "status",
                 drawerMenu: [
                     {
                         title: 'Status', icon: 'dashboard', action: () => {

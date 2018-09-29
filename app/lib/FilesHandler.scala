@@ -42,10 +42,14 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
     val attemptCounter = new AtomicInteger(0)
 
     cloudConnector
-      .upload(file) { uploadedBytes =>
-        wsApiController.send(
-          WsMessage(`type` = "fileUploadUpdate", data = FileProgressUpdate(file.name, file.size, uploadedBytes).asJson)
-        )
+      .upload(file) { (uploadedBytes, speed) =>
+        wsApiController
+          .send(
+            WsMessage(`type` = "fileUploadUpdate", data = FileProgressUpdate(file.pathAsString, file.size, uploadedBytes, speed).asJson)
+          )
+          .runAsync {
+            case Left(ex) => logger.debug("Could not send file upload update", ex)
+          }
       }
       .restartIf(handleRetries(attemptCounter.incrementAndGet(), file))
       .withResult {
@@ -86,4 +90,4 @@ private object FileHandlingResult {
 
 }
 
-private case class FileProgressUpdate(fileName: String, fileSize: Long, bytesUploaded: Long)
+private case class FileProgressUpdate(name: String, totalSize: Long, uploaded: Long, speed: Double)

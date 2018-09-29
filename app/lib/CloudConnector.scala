@@ -21,7 +21,7 @@ import lib.CirceImplicits._
 import lib.serverapi.ListFilesResponse.FilesList
 import lib.serverapi._
 import monix.eval.Task
-import monix.execution.Scheduler
+import monix.execution.{Cancelable, Scheduler}
 import org.http4s
 import org.http4s.client.Client
 import org.http4s.client.blaze.{BlazeClientConfig, Http1Client}
@@ -32,9 +32,9 @@ import pureconfig.modules.http4s.uriReader
 import pureconfig.{CamelCase, ConfigFieldMapping, ProductHint}
 
 import scala.concurrent.Await
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration._
 
-class CloudConnector(httpClient: Client[Task], chunkSize: Int) extends StrictLogging {
+class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Scheduler) extends StrictLogging {
 
   // TODO retries
   // TODO monitoring
@@ -66,16 +66,10 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int) extends StrictLog
       }
   }
 
-  def upload(file: File)(callback: Long => Unit)(implicit session: ServerSession): Result[UploadResponse] = {
+  def upload(file: File)(callback: (Long, Double) => Unit)(implicit session: ServerSession): Result[UploadResponse] = {
     logger.debug(s"Uploading $file")
 
-    val bytesUploaded = new AtomicLong(0)
-
-    def uploadCallback(b: Int): Unit = {
-      callback.apply(bytesUploaded.addAndGet(b))
-    }
-
-    stream("upload", file, uploadCallback, Map("file_path" -> file.path.toAbsolutePath.toString)) {
+    stream("upload", file, callback, Map("file_path" -> file.path.toAbsolutePath.toString)) {
       case ServerResponse(Status.Ok, Some(json)) => json.as[RemoteFile].toResult.map(UploadResponse.Uploaded)
       case ServerResponse(Status.PreconditionFailed, _) => pureResult(UploadResponse.Sha256Mismatch)
     }
@@ -151,7 +145,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int) extends StrictLog
       .map(_.putHeaders(http4s.Header("RBackup-Session-Pass", session.sessionId)))
   }
 
-  private def stream[A](path: String, file: File, callback: Int => Unit, queryParams: Map[String, String] = Map.empty)(
+  private def stream[A](path: String, file: File, callback: (Long, Double) => Unit, queryParams: Map[String, String] = Map.empty)(
       pf: PartialFunction[ServerResponse, Result[A]])(implicit session: ServerSession): Result[A] = {
 
     def createRequest(rootUri: Uri, inputStream: InputStreamWithSha256): EitherT[Task, AppException, Request[Task]] = {
@@ -184,12 +178,28 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int) extends StrictLog
       rootUri <- EitherT.fromEither[Task](
         Uri.fromString(session.host).leftMap[AppException](AppException.InvalidArgument("Could not parse provided host", _)))
       fis <- EitherT.rightT[Task, AppException](file.newInputStream)
-      inputStream = new InputStreamWithSha256(new CallbackInputStream(fis)(callback))
+      (cis, canc) = wrapWithStats(fis, callback)
+      inputStream = new InputStreamWithSha256(cis)
       request <- createRequest(rootUri, inputStream)
-      result <- exec(request)(pf)
+      result <- exec(request)(pf).map { res => // cancel stats reporting
+        logger.debug(s"Cancelling stats sending for ${file.name}")
+        canc.cancel()
+        res
+      }
     } yield {
       result
     }
+  }
+
+  private def wrapWithStats[A](fis: InputStream, callback: (Long, Double) => Unit): (StatsInputStream, Cancelable) = {
+    val cis = new StatsInputStream(fis)
+
+    val canc = scheduler.scheduleAtFixedRate(0.second, 1.second) {
+      val (bytes, speed) = cis.snapshot
+      callback(bytes, speed)
+    }
+
+    (cis, canc)
   }
 
   private def exec[A](request: Request[Task])(pf: PartialFunction[ServerResponse, Result[A]]): Result[A] = EitherT {
@@ -312,7 +322,7 @@ object CloudConnector {
     val conf = pureconfig.loadConfigOrThrow[CloudConnectorConfiguration](config.withFallback(DefaultConfig))
     val httpClient: Client[Task] = Await.result(Http1Client[Task](conf.toBlazeConfig.copy(executionContext = sch)).runAsync, Duration.Inf)
 
-    new CloudConnector(httpClient, conf.chunkSize)
+    new CloudConnector(httpClient, conf.chunkSize, sch)
   }
 }
 

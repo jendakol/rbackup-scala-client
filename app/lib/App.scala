@@ -5,6 +5,9 @@ import cats.syntax.either._
 import com.avast.metrics.scalaapi.Timer
 import io.circe.Json
 import monix.eval.Task
+import monix.execution.Scheduler
+
+import scala.concurrent.Future
 
 object App {
   type Result[A] = EitherT[Task, AppException, A]
@@ -38,6 +41,15 @@ object App {
 
     def restartIf(cond: Throwable => Boolean): Result[A] = EitherT {
       r.value.onErrorRestartIf(cond)
+    }
+
+    def runAsync(callback: PartialFunction[Either[Throwable, A], Any])(implicit s: Scheduler): Future[Either[AppException, A]] = {
+      r.value.runAsync.andThen {
+        case scala.util.Success(ei) => if (callback.isDefinedAt(ei)) callback.apply(ei)
+        case scala.util.Failure(exception) =>
+          val ei = Left(exception)
+          if (callback.isDefinedAt(ei)) callback.apply(ei)
+      }
     }
 
     /** Measures time from start of the task to the place in the chain where this method is called. Measures only succeeded tasks.

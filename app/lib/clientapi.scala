@@ -18,24 +18,30 @@ object clientapi extends StrictLogging {
 
   sealed trait ClientStatus {
     def name: String
+
+    def data: Json
   }
 
   object ClientStatus {
 
     case object Installed extends ClientStatus {
       val name: String = "INSTALLED"
+      val data: Json = Json.Null
     }
 
-    case object Ready extends ClientStatus {
+    case class Ready(host: String) extends ClientStatus {
       val name: String = "READY"
+      val data: Json = parseSafe(s"""{ "host": "$host"}""")
     }
 
     case object Disconnected extends ClientStatus {
       val name: String = "DISCONNECTED"
+      val data: Json = Json.Null
     }
 
     case object Initializing extends ClientStatus {
       val name: String = "INITIALIZING"
+      val data: Json = Json.Null
     }
 
   }

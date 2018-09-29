@@ -37,7 +37,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       }
     case StatusCommand =>
       stateManager.status.map { status =>
-        parseSafe(s"""{ "success": true, "status": "${status.name}"}""")
+        parseSafe(s"""{ "success": true, "status": "${status.name}", "data": ${status.data}}""")
       }
 
     case RegisterCommand(host, username, password) =>

@@ -1,5 +1,6 @@
 package controllers
 
+import java.util.concurrent.{Executors, TimeUnit}
 import java.util.concurrent.atomic.AtomicReference
 
 import akka.actor._
@@ -57,7 +58,7 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
         out.get() match {
           case Some(o) =>
             Try {
-              logger.trace(s"Sending WS message: $wsMessage")
+              logger.debug(s"Sending WS message: $wsMessage")
 
               o ! wsMessage.asJson.noSpaces
             }.toEither

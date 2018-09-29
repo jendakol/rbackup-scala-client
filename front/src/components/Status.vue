@@ -1,10 +1,41 @@
 <template>
-    <div>
-        STATUS
-    </div>
+    <v-container fluid>
+        <v-layout>
+            <v-flex>
+                <v-card>
+                    <v-container fluid grid-list-md>
+                        <v-layout row wrap>
+                            <v-flex xs12>
+                                <v-card>
+                                    <v-toolbar dense color="primary">
+                                        <v-toolbar-title class="white--text">Connection</v-toolbar-title>
+                                    </v-toolbar>
+                                    <ConnectionStatus :ajax="this.ajax" :registerWsListener="this.registerWsListener"
+                                                      :asyncActionWithNotification="this.asyncActionWithNotification"/>
+                                </v-card>
+                            </v-flex>
+                            <v-flex xs12>
+                                <v-card>
+                                    <v-toolbar dense color="primary">
+                                        <v-toolbar-title class="white--text">Upload status</v-toolbar-title>
+                                    </v-toolbar>
+                                    <UploadingsStatus :ajax="this.ajax" :registerWsListener="this.registerWsListener"
+                                                      :asyncActionWithNotification="this.asyncActionWithNotification"/>
+                                </v-card>
+                            </v-flex>
+
+                        </v-layout>
+                    </v-container>
+                </v-card>
+            </v-flex>
+        </v-layout>
+    </v-container>
 </template>
 
 <script>
+    import ConnectionStatus from '../components/status/ConnectionStatus.vue';
+    import UploadingsStatus from '../components/status/UploadingsStatus.vue';
+
     export default {
         name: "Status",
         props: {
@@ -12,18 +43,15 @@
             asyncActionWithNotification: Function,
             registerWsListener: Function
         },
-        created() {
-            this.registerWsListener(this.receiveWs)
+        components: {
+            ConnectionStatus,
+            UploadingsStatus
         },
-        methods: {
-            receiveWs(message) {
-                switch (message.type) {
-                    case "fileUploadUpdate": {
-                        alert(message.data);
-                    }
-                        break;
-                }
-            },
-        }
+        data() {
+            return {}
+        },
+        created() {
+        },
+        methods: {}
     }
 </script>
