@@ -30,4 +30,6 @@ class InputStreamWithSha256(input: InputStream) extends InputStream {
     digest.update(b.slice(off, off + bytes))
     bytes
   }
+
+  override def close(): Unit = input.close()
 }

@@ -1,7 +1,6 @@
 package lib
 
 import better.files.File
-import cats.data.EitherT
 import com.typesafe.scalalogging.StrictLogging
 import io.circe.Json
 import io.circe.generic.extras.auto._
@@ -13,7 +12,6 @@ import lib.AppException.LoginRequired
 import lib.CirceImplicits._
 import lib.clientapi.{FileTree, FileTreeNode}
 import lib.serverapi.{DownloadResponse, LoginResponse, UploadResponse}
-import monix.eval.Task
 import monix.execution.Scheduler
 import utils.ConfigProperty
 
@@ -62,15 +60,26 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       withSession { implicit session =>
         val file = File(path)
 
-        for {
-          r <- filesHandler.uploadNow(file)
-          _ <- updateFilesRegistry(file, r)
-        } yield {
-          r match {
-            case UploadResponse.Uploaded(_) => parseSafe("""{ "success": true }""")
-            case UploadResponse.Sha256Mismatch => parseSafe("""{ "success": false, "reason": "SHA-256 mismatch" }""")
+        filesHandler
+          .uploadNow(file)
+          .map { results =>
+            if (results.size == 1) {
+              results.head match {
+                case UploadResponse.Uploaded(_) => parseSafe("""{ "success": true }""")
+                case UploadResponse.Sha256Mismatch => parseSafe("""{ "success": false, "reason": "SHA-256 mismatch" }""")
+              }
+            } else {
+              val failures = results.collect {
+                case UploadResponse.Sha256Mismatch => "Could not upload file" // TODO this is sad
+              }
+
+              if (failures.nonEmpty) {
+                parseSafe(s"""{ "success": false, "reason": "${failures.mkString("[", ", ", "]")}" }""")
+              } else {
+                parseSafe("""{ "success": true }""")
+              }
+            }
           }
-        }
       }
 
     case Download(path, versionId) =>
@@ -174,13 +183,6 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
     settings.session.flatMap {
       case Some(sid) => f(sid)
       case None => failedResult(LoginRequired())
-    }
-  }
-
-  private def updateFilesRegistry(file: File, r: UploadResponse): EitherT[Task, AppException, _ >: CloudFilesList with Unit] = {
-    r match {
-      case UploadResponse.Uploaded(remoteFile) => filesRegistry.updateFile(file, remoteFile)
-      case _ => pureResult(())
     }
   }
 }

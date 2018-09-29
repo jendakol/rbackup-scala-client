@@ -4,7 +4,6 @@ import java.io.{ByteArrayInputStream, InputStream}
 import java.net.ConnectException
 import java.nio.file.AccessDeniedException
 import java.util.concurrent.TimeoutException
-import java.util.concurrent.atomic.AtomicLong
 
 import better.files.File
 import cats.data.EitherT
@@ -181,18 +180,21 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
       (cis, canc) = wrapWithStats(fis, callback)
       inputStream = new InputStreamWithSha256(cis)
       request <- createRequest(rootUri, inputStream)
-      result <- exec(request)(pf).map { res => // cancel stats reporting
-        logger.debug(s"Cancelling stats sending for ${file.name}")
+      result <- exec(request)(pf).map { res => // cancel stats reporting and close the IS
+        logger.debug(s"Cancelling stats sending for ${file.name}, file was uploaded")
         canc.cancel()
+        inputStream.close()
         res
       }
     } yield {
+      callback(file.size, 0) // last time to be sure the UI will be informed
+      logger.debug(s"File $file uploaded, sent finalizing stats to UI")
       result
     }
   }
 
   private def wrapWithStats[A](fis: InputStream, callback: (Long, Double) => Unit): (StatsInputStream, Cancelable) = {
-    val cis = new StatsInputStream(fis)
+    val cis = new StatsInputStream(fis)(scheduler)
 
     val canc = scheduler.scheduleAtFixedRate(0.second, 1.second) {
       val (bytes, speed) = cis.snapshot
