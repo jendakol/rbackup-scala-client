@@ -183,7 +183,7 @@ object clientapi extends StrictLogging {
       val originalPath = file.originalName
       val versions = Option(file.versions.map(Version(file.originalName, _))).filter(_.nonEmpty)
 
-      logger.debug(s"Processing $file")
+      logger.trace(s"Processing $file")
 
       FileTree(
         name = extractTreeName(file.originalName),

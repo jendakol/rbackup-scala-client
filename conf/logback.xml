@@ -17,6 +17,7 @@
 
     <logger name="akka" level="INFO"/>
     <logger name="org.http4s" level="INFO"/>
+    <logger name="org.http4s.blaze.pipeline.Stage" level="OFF"/> <!-- the exception is logged as ERROR and passed - it pollutes the log -->
     <logger name="com.zaxxer" level="INFO"/>
     <logger name="scalikejdbc" level="INFO"/>
 

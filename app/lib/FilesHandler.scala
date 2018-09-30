@@ -53,15 +53,22 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
       uploadDir(file)
     } else {
       withSemaphore {
-        logger.debug(s"Uploading ${uploadingCnt.incrementAndGet()} files now")
+        logger.debug(s"Uploading ${uploadingCnt.incrementAndGet()} files now (max $uploadParallelism)")
 
         val attemptCounter = new AtomicInteger(0)
 
         cloudConnector
-          .upload(file) { (uploadedBytes, speed) =>
+          .upload(file) { (uploadedBytes, speed, isFinal) =>
             wsApiController
               .send(
-                WsMessage(`type` = "fileUploadUpdate", data = FileProgressUpdate(file.pathAsString, file.size, uploadedBytes, speed).asJson)
+                WsMessage(
+                  `type` = "fileUploadUpdate",
+                  data = FileProgressUpdate(file.pathAsString,
+                                            if (isFinal) "done" else "uploading",
+                                            Some(file.size),
+                                            Some(uploadedBytes),
+                                            Some(speed)).asJson
+                )
               )
               .runAsync {
                 case Left(ex) => logger.debug("Could not send file upload update", ex)
@@ -70,17 +77,17 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
           .restartIf(handleRetries(attemptCounter.incrementAndGet(), file))
           .withResult {
             case Right(UploadResponse.Uploaded(_)) =>
-              logger.debug(s"File ${file.name} uploaded")
+              logger.debug(s"File ${file.pathAsString} uploaded")
               uploadedMeter.mark()
               uploadingCnt.decrementAndGet()
 
             case Right(UploadResponse.Sha256Mismatch) =>
-              logger.info(s"SHA256 mismatch while uploading file ${file.name}")
+              logger.info(s"SHA256 mismatch while uploading file ${file.pathAsString}")
               uploadedFailedMeter.mark()
               uploadingCnt.decrementAndGet()
 
             case Left(appException) =>
-              logger.info(s"Error while uploading file ${file.name}", appException)
+              logger.info(s"Error while uploading file ${file.pathAsString}", appException)
               uploadedFailedMeter.mark()
               uploadingCnt.decrementAndGet()
           }
@@ -127,18 +134,24 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
 
   private def withSemaphore[A](a: => Result[A]): Result[A] = EitherT {
     (for {
-      _ <- if (logger.underlying.isDebugEnabled) {
-        uploadSemaphore.available.map(p => logger.debug(s"Available: $p"))
-      } else Task.unit
       _ <- uploadSemaphore.decrement
       result <- a.value
     } yield {
       result
-    }).transformWith(res => {
-      uploadSemaphore.increment.map(_ => res)
-    }, th => {
-      uploadSemaphore.increment >> Task.raiseError(th)
-    })
+    }).transformWith(
+      res => {
+        logger.trace(s"File upload result $res, unlocking")
+        uploadSemaphore.increment.map { _ =>
+          logger.debug(s"Currently uploading ${uploadingCnt.get()} files")
+          res
+        }
+      },
+      th => {
+        logger.trace(s"File upload failed, unlocking", th)
+        uploadSemaphore.increment
+          .map(_ => logger.debug(s"Currently uploading ${uploadingCnt.get()} files")) >> Task.raiseError(th)
+      }
+    )
   }
 
   override def close(): Unit = ()
@@ -154,4 +167,8 @@ private object FileHandlingResult {
 
 }
 
-private case class FileProgressUpdate(name: String, totalSize: Long, uploaded: Long, speed: Double)
+private case class FileProgressUpdate(name: String,
+                                      status: String,
+                                      totalSize: Option[Long] = None,
+                                      uploaded: Option[Long] = None,
+                                      speed: Option[Double] = None)

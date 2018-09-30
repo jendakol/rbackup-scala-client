@@ -65,7 +65,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
       }
   }
 
-  def upload(file: File)(callback: (Long, Double) => Unit)(implicit session: ServerSession): Result[UploadResponse] = {
+  def upload(file: File)(callback: (Long, Double, Boolean) => Unit)(implicit session: ServerSession): Result[UploadResponse] = {
     logger.debug(s"Uploading $file")
 
     stream("upload", file, callback, Map("file_path" -> file.path.toAbsolutePath.toString)) {
@@ -144,7 +144,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
       .map(_.putHeaders(http4s.Header("RBackup-Session-Pass", session.sessionId)))
   }
 
-  private def stream[A](path: String, file: File, callback: (Long, Double) => Unit, queryParams: Map[String, String] = Map.empty)(
+  private def stream[A](path: String, file: File, callback: (Long, Double, Boolean) => Unit, queryParams: Map[String, String] = Map.empty)(
       pf: PartialFunction[ServerResponse, Result[A]])(implicit session: ServerSession): Result[A] = {
 
     def createRequest(rootUri: Uri, inputStream: InputStreamWithSha256): EitherT[Task, AppException, Request[Task]] = {
@@ -177,18 +177,20 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
       rootUri <- EitherT.fromEither[Task](
         Uri.fromString(session.host).leftMap[AppException](AppException.InvalidArgument("Could not parse provided host", _)))
       fis <- EitherT.rightT[Task, AppException](file.newInputStream)
-      (cis, canc) = wrapWithStats(fis, callback)
+      (cis, canc) = wrapWithStats(fis, callback(_, _, false))
       inputStream = new InputStreamWithSha256(cis)
       request <- createRequest(rootUri, inputStream)
       result <- exec(request)(pf).map { res => // cancel stats reporting and close the IS
-        logger.debug(s"Cancelling stats sending for ${file.name}, file was uploaded")
+        logger.debug(s"End stats sending for ${file.pathAsString}, file was uploaded")
         canc.cancel()
         inputStream.close()
         res
       }
     } yield {
-      callback(file.size, 0) // last time to be sure the UI will be informed
-      logger.debug(s"File $file uploaded, sent finalizing stats to UI")
+      val (_, speed) = cis.snapshot
+      logger.debug(s"File ${file.pathAsString} uploaded, sent finalizing stats to UI")
+      callback(file.size, speed, true) // send final/last stats
+
       result
     }
   }
@@ -214,7 +216,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
         resp.bodyAsText.compile.toList
           .map(parts => if (parts.isEmpty) None else Some(parts.mkString))
           .flatMap { str =>
-            logger.debug(s"Cloud response body: $str")
+            logger.trace(s"Cloud response body: $str")
 
             val jsonResult = str.map(io.circe.parser.parse) match {
               case Some(Right(json)) => pureResult(Some(json))

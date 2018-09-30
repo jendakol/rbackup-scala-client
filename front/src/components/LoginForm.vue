@@ -5,12 +5,12 @@
                 <v-layout align-center justify-center>
                     <v-flex xs12 sm8 md4>
                         <v-tabs color="primary">
-                            <v-tab :key="login">Login</v-tab>
-                            <v-tab :key="register">Register</v-tab>
-                            <v-tab-item :key="login">
+                            <v-tab >Login</v-tab>
+                            <v-tab >Register</v-tab>
+                            <v-tab-item >
                                 <v-card class="elevation-12">
                                     <v-card-text>
-                                        <v-form @submit="doLogin">
+                                        <v-form @submit="login">
                                             <v-text-field prepend-icon="home" name="host" type="text" title="Server host"
                                                           v-model="loginForm.host"></v-text-field>
                                             <v-text-field prepend-icon="person" name="login" type="text"
@@ -27,10 +27,10 @@
 
                                 </v-card>
                             </v-tab-item>
-                            <v-tab-item :key="register">
+                            <v-tab-item >
                                 <v-card class="elevation-12">
                                     <v-card-text>
-                                        <v-form>
+                                        <v-form @submit="register">
                                             <v-text-field prepend-icon="home" name="host" type="text" title="Server host"
                                                           v-model="loginForm.host"></v-text-field>
                                             <v-text-field prepend-icon="person" name="login" type="text"
@@ -76,7 +76,7 @@
             asyncActionWithNotification: Function
         },
         methods: {
-            doLogin(evt) {
+            login(evt) {
                 evt.preventDefault();
 
                 this.asyncActionWithNotification("login", {

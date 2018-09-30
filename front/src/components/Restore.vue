@@ -33,7 +33,7 @@
         </vue-context>
         <vue-context ref="dirMenu">
             <ul>
-                <li @click="alert('???')">Restore this directory</li>
+                <li @click="alert('???')">Restore all files in this directory to last version</li>
             </ul>
         </vue-context>
     </div>

@@ -65,26 +65,27 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       withSession { implicit session =>
         val file = File(path)
 
-        filesHandler
-          .uploadNow(file)
-          .map { results =>
-            if (results.size == 1) {
-              results.head match {
-                case UploadResponse.Uploaded(_) => parseSafe("""{ "success": true }""")
-                case UploadResponse.Sha256Mismatch => parseSafe("""{ "success": false, "reason": "SHA-256 mismatch" }""")
-              }
-            } else {
-              val failures = results.collect {
-                case UploadResponse.Sha256Mismatch => "Could not upload file" // TODO this is sad
-              }
+        for {
+          results <- filesHandler.uploadNow(file)
+          _ <- filesRegistry.reportBackedUpFilesList
+        } yield {
+          if (results.size == 1) {
+            results.head match {
+              case UploadResponse.Uploaded(_) => parseSafe("""{ "success": true }""")
+              case UploadResponse.Sha256Mismatch => parseSafe("""{ "success": false, "reason": "SHA-256 mismatch" }""")
+            }
+          } else {
+            val failures = results.collect {
+              case UploadResponse.Sha256Mismatch => "Could not upload file" // TODO this is sad
+            }
 
-              if (failures.nonEmpty) {
-                parseSafe(s"""{ "success": false, "reason": "${failures.mkString("[", ", ", "]")}" }""")
-              } else {
-                parseSafe("""{ "success": true }""")
-              }
+            if (failures.nonEmpty) {
+              parseSafe(s"""{ "success": false, "reason": "${failures.mkString("[", ", ", "]")}" }""")
+            } else {
+              parseSafe("""{ "success": true }""")
             }
           }
+        }
       }
 
     case Download(path, versionId) =>

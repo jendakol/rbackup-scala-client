@@ -44,21 +44,25 @@
                 let newData = Object.assign({}, this.uploadings);
                 let key = this.strToHex(fileUploading.name);
 
-                if (fileUploading.total_size === fileUploading.uploaded) {
+                if (fileUploading.status === "done") {
                     delete newData[key];
                 } else {
-                    let progress = Math.floor(fileUploading.uploaded / fileUploading.total_size * 100);
+                    let progress = Math.min(99, Math.floor(fileUploading.uploaded / fileUploading.total_size * 100)); // max. show 99%
 
-                    if (fileUploading.speed > 1500) {
-                        var speed = (Math.round(fileUploading.speed / 100) / 10) + " MBps"
+                    if (progress === 99) {
+                        var status = "Finishing..."
                     } else {
-                        var speed = fileUploading.speed + " kBps"
+                        if (fileUploading.speed > 1500) {
+                            var status = "@ " + (Math.round(fileUploading.speed / 100) / 10) + " MBps"
+                        } else {
+                            var status = "@ " + fileUploading.speed + " kBps"
+                        }
                     }
 
                     newData[key] = {
                         name: fileUploading.name,
                         progress: progress,
-                        status: "@ " + speed
+                        status: status
                     };
                 }
 

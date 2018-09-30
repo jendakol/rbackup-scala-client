@@ -1,6 +1,5 @@
 package controllers
 
-import java.util.concurrent.{Executors, TimeUnit}
 import java.util.concurrent.atomic.AtomicReference
 
 import akka.actor._
@@ -8,9 +7,10 @@ import akka.stream.Materializer
 import cats.data.EitherT
 import cats.syntax.either._
 import com.typesafe.scalalogging.StrictLogging
-import io.circe.Json
+import controllers.WsApiController._
 import io.circe.generic.extras.auto._
 import io.circe.syntax._
+import io.circe.{Json, Printer}
 import javax.inject._
 import lib.AppException.WsException
 import lib.CirceImplicits._
@@ -60,7 +60,7 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
             Try {
               logger.trace(s"Sending WS message: $wsMessage")
 
-              o ! wsMessage.asJson.noSpaces
+              o ! wsMessage.asJson.pretty(jsonPrinter)
             }.toEither
               .leftMap(WsException("Could not send WS message", _))
 
@@ -80,6 +80,10 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
     }
   }
 
+}
+
+object WsApiController {
+  val jsonPrinter: Printer = Printer.noSpaces.copy(dropNullValues = true)
 }
 
 case class WsMessage(`type`: String, data: Json)

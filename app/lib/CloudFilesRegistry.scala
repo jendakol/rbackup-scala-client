@@ -13,6 +13,10 @@ import lib.serverapi.{RemoteFile, RemoteFileVersion}
 class CloudFilesRegistry @Inject()(wsApiController: WsApiController, dao: Dao) {
 
   def updateFile(file: File, remoteFile: RemoteFile): Result[Unit] = {
+    dao.updateFile(file, remoteFile)
+  }
+
+  def reportBackedUpFilesList: Result[Unit] = {
     def sendWsUpdate(json: Json): Result[Unit] = {
       wsApiController.send {
         controllers.WsMessage(
@@ -23,7 +27,6 @@ class CloudFilesRegistry @Inject()(wsApiController: WsApiController, dao: Dao) {
     }
 
     for {
-      _ <- dao.updateFile(file, remoteFile)
       files <- dao.listAllFiles
       fileTrees = FileTree.fromRemoteFiles(files.map(_.remoteFile))
       json = fileTrees.toJson

@@ -57,7 +57,9 @@ class StateManager(deviceId: DeviceId, cloudConnector: CloudConnector, dao: Dao,
 
     for {
       allFiles <- cloudConnector.listFiles(Some(deviceId)).subflatMap {
-        case ListFilesResponse.FilesList(files) => Right(files)
+        case ListFilesResponse.FilesList(files) =>
+          logger.debug(s"Downloaded files list with ${files.length} items")
+          Right(files)
         case ListFilesResponse.DeviceNotFound(_) =>
           logger.error("Server does not know this device even though the request was authenticated")
           Left(AppException.Unauthorized)
