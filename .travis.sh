@@ -27,6 +27,7 @@ function client_test() {
      wait_for_service && \
      cd .. && \
      sbt test && \
+     cd ci-tests  && \
      docker-compose down
 }
 
