@@ -36,7 +36,7 @@ class StateManager(deviceId: DeviceId, cloudConnector: CloudConnector, dao: Dao,
               .status(ss)
               .map[ClientStatus] { _ =>
                 logger.debug("Status READY")
-                ClientStatus.Ready(ss.host)
+                ClientStatus.Ready(ss.rootUri)
               }
               .recover {
                 case e =>

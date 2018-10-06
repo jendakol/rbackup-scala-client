@@ -13,6 +13,7 @@ import lib.App.parseSafe
 import lib.CirceImplicits._
 import lib.clientapi.FileTreeNode.{Directory, RegularFile}
 import lib.serverapi.RemoteFile
+import org.http4s.Uri
 
 object clientapi extends StrictLogging {
 
@@ -29,9 +30,9 @@ object clientapi extends StrictLogging {
       val data: Json = Json.Null
     }
 
-    case class Ready(host: String) extends ClientStatus {
+    case class Ready(rootUri: Uri) extends ClientStatus {
       val name: String = "READY"
-      val data: Json = parseSafe(s"""{ "host": "$host"}""")
+      val data: Json = parseSafe(s"""{ "host": "$rootUri"}""")
     }
 
     case object Disconnected extends ClientStatus {

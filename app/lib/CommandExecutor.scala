@@ -1,6 +1,8 @@
 package lib
 
 import better.files.File
+import cats.data.EitherT
+import cats.syntax.either._
 import com.typesafe.scalalogging.StrictLogging
 import io.circe.Json
 import io.circe.generic.extras.auto._
@@ -12,7 +14,9 @@ import lib.AppException.LoginRequired
 import lib.CirceImplicits._
 import lib.clientapi.{FileTree, FileTreeNode}
 import lib.serverapi.{DownloadResponse, LoginResponse, UploadResponse}
+import monix.eval.Task
 import monix.execution.Scheduler
+import org.http4s.Uri
 import utils.ConfigProperty
 
 @Singleton
@@ -42,21 +46,32 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
     case RegisterCommand(host, username, password) =>
       // TODO check the URL
 
-      cloudConnector.registerAccount(host, username, password).map(RegisterCommand.toResponse)
+      for {
+        uri <- EitherT.fromEither[Task] {
+          Uri.fromString(host).leftMap[AppException](AppException.InvalidArgument("Could not parse provided host", _))
+        }
+        resp <- cloudConnector.registerAccount(uri, username, password).map(RegisterCommand.toResponse)
+      } yield resp
 
     case LoginCommand(host, username, password) =>
       // TODO check the URL
 
-      cloudConnector.login(host, deviceId, username, password).flatMap {
-        case LoginResponse.SessionCreated(sessionId) =>
-          logger.info("Session on backend created")
-          stateManager.login(sessionId).map(_ => parseSafe("""{ "success": true }"""))
-        case LoginResponse.SessionRecovered(sessionId) =>
-          logger.info("Session on backend restored")
-          stateManager.login(sessionId).map(_ => parseSafe("""{ "success": true }"""))
-        case LoginResponse.Failed =>
-          pureResult(parseSafe("""{ "success": false }"""))
-      }
+      EitherT
+        .fromEither[Task] {
+          Uri.fromString(host).leftMap[AppException](AppException.InvalidArgument("Could not parse provided host", _))
+        }
+        .flatMap { uri =>
+          cloudConnector.login(uri, deviceId, username, password).flatMap {
+            case LoginResponse.SessionCreated(sessionId) =>
+              logger.info("Session on backend created")
+              stateManager.login(sessionId).map(_ => parseSafe("""{ "success": true }"""))
+            case LoginResponse.SessionRecovered(sessionId) =>
+              logger.info("Session on backend restored")
+              stateManager.login(sessionId).map(_ => parseSafe("""{ "success": true }"""))
+            case LoginResponse.Failed =>
+              pureResult(parseSafe("""{ "success": false }"""))
+          }
+        }
 
     case LogoutCommand =>
       settings.session(None).map(_ => parseSafe("""{ "success": true }"""))

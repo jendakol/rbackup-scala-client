@@ -6,6 +6,7 @@ import com.avast.metrics.scalaapi.Timer
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler
+import org.http4s.Uri
 
 import scala.concurrent.Future
 
@@ -81,6 +82,6 @@ object App {
 
 }
 
-case class ServerSession(host: String, sessionId: String)
+case class ServerSession(rootUri: Uri, sessionId: String)
 
 case class DeviceId(value: String) extends AnyVal
