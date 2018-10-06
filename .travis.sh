@@ -21,8 +21,17 @@ function wait_for_service() {
     echo -e "rbackup ready"
 }
 
-sbt test &&
-  if $(test ${TRAVIS_REPO_SLUG} == "jendakol/rbackup-scala-client" && test ${TRAVIS_PULL_REQUEST} == "false" && test "$TRAVIS_TAG" != ""); then
+function client_test() {
+    cd ci-tests  && \
+     docker-compose up -d --build --force-recreate && \
+     wait_for_service && \
+     cd .. && \
+     sbt test && \
+     docker-compose down
+}
+
+client_test &&
+  if $(test "${TRAVIS_REPO_SLUG}" == "jendakol/rbackup-scala-client" && test "${TRAVIS_PULL_REQUEST}" == "false" && test "$TRAVIS_TAG" != ""); then
     sbt +publish
   else
     exit 0 # skipping publish, it's regular build
