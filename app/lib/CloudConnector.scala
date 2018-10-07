@@ -97,6 +97,15 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
     }
   }
 
+  def removeFileVersion(id: Long)(implicit session: ServerSession): Result[RemoveFileVersionResponse] = {
+    logger.debug(s"Removing file version with ID $id")
+
+    exec(authenticatedRequest(Method.DELETE, "remove/fileVersion", Map("file_version_id" -> id.toString))) {
+      case ServerResponse(Status.Ok, _) => pureResult(RemoveFileVersionResponse.Success)
+      case ServerResponse(Status.NotFound, _) => pureResult(RemoveFileVersionResponse.FileNotFound)
+    }
+  }
+
   def status(implicit session: ServerSession): Result[String] = {
     status(session.rootUri)
   }

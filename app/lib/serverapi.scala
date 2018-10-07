@@ -68,4 +68,15 @@ object serverapi {
 
   }
 
+  // remove file version
+  sealed trait RemoveFileVersionResponse
+
+  object RemoveFileVersionResponse {
+
+    case object Success extends RemoveFileVersionResponse
+
+    case object FileNotFound extends RemoveFileVersionResponse
+
+  }
+
 }
