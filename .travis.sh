@@ -26,7 +26,7 @@ function client_test() {
      docker-compose up -d --build --force-recreate && \
      wait_for_service && \
      cd .. && \
-     sbt test && \
+     sbt ";clean;test" && \
      cd ci-tests  && \
      docker-compose down
 }

@@ -1,9 +1,6 @@
 import TestOps._
 import better.files.File
 import com.typesafe.config.ConfigFactory
-import lib.serverapi.DownloadResponse.Downloaded
-import lib.serverapi.ListFilesResponse.FilesList
-import lib.serverapi.UploadResponse.Uploaded
 import lib.serverapi._
 import lib.{CloudConnector, ServerSession, Sha256}
 import monix.execution.Scheduler.Implicits.global
@@ -31,7 +28,7 @@ class IntegrationTest extends FunSuite {
   }
 
   test("upload, list and download") {
-    val theFile = File(getClass.getClassLoader.getResource("resources/theFileToBeUploaded.dat"))
+    val theFile = File(getClass.getClassLoader.getResource("theFileToBeUploaded.dat"))
 
     // login
     val username = randomString(10)
