@@ -116,6 +116,8 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
 
     val uri = path.split("/").foldLeft(rootUri)(_ / _).setQueryParams(queryParams.mapValues(Seq(_)))
 
+    logger.debug(s"Final request uri: $uri")
+
     Request[Task](
       method,
       uri
