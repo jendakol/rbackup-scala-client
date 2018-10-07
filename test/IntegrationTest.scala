@@ -157,5 +157,47 @@ class IntegrationTest extends FunSuite {
 
   }
 
-  // TODO remove file
+  test("remove file") {
+    val theFile = File(getClass.getClassLoader.getResource("theFileToBeUploaded.dat"))
+    val theFile2 = File.newTemporaryFile("rbackup")
+    theFile2.write(randomString(1000))
+
+    // login
+    val username = randomString(10)
+    connector.registerAccount(rootUri, username, "password").unwrappedFutureValue
+    val LoginResponse.SessionCreated(session) = connector.login(rootUri, "rbackup-test", username, "password").unwrappedFutureValue
+    implicit val s: ServerSession = session
+
+    // upload 2 files
+
+    for (_ <- 1 to 10) {
+      val UploadResponse.Uploaded(remoteFile) = connector.upload(theFile)((_, _, _) => ()).unwrappedFutureValue
+      assertResult(theFile.pathAsString)(remoteFile.originalName)
+    }
+
+    for (_ <- 1 to 5) {
+      val UploadResponse.Uploaded(remoteFile) = connector.upload(theFile2)((_, _, _) => ()).unwrappedFutureValue
+      assertResult(theFile2.pathAsString)(remoteFile.originalName)
+    }
+
+    // list files
+
+    val ListFilesResponse.FilesList(files1) = connector.listFiles(None).unwrappedFutureValue
+    val Seq(remoteFile1, remoteFile2) = files1.sortBy(_.originalName)
+
+    assertResult(10)(remoteFile1.versions.size)
+    assertResult(5)(remoteFile2.versions.size)
+
+    // remove file
+
+    assertResult(RemoveFileResponse.Success)(connector.removeFile(remoteFile1.id).unwrappedFutureValue)
+
+    // list files
+
+    val ListFilesResponse.FilesList(files2) = connector.listFiles(None).unwrappedFutureValue
+    val Seq(remoteFile22) = files2
+
+    assertResult(5)(remoteFile22.versions.size)
+
+  }
 }

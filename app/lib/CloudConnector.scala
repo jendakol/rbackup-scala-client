@@ -6,7 +6,7 @@ import java.nio.file.AccessDeniedException
 import java.util.concurrent.TimeoutException
 
 import better.files.File
-import cats.data.EitherT
+import cats.data.{EitherT, NonEmptyList}
 import com.typesafe.config.{Config, ConfigFactory}
 import com.typesafe.scalalogging.StrictLogging
 import fs2.Stream
@@ -94,6 +94,17 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
         pureResult(ListFilesResponse.DeviceNotFound {
           specificDevice.getOrElse(throw new IllegalStateException("Must not be empty"))
         })
+    }
+  }
+
+  def removeFile(id: Long)(implicit session: ServerSession): Result[RemoveFileResponse] = {
+    logger.debug(s"Removing file version with ID $id")
+
+    exec(authenticatedRequest(Method.DELETE, "remove/file", Map("file_id" -> id.toString))) {
+      case ServerResponse(Status.Ok, _) => pureResult(RemoveFileResponse.Success)
+      case ServerResponse(Status.InternalServerError, Some(json)) =>
+        json.as[NonEmptyList[String]].toResult.map(RemoveFileResponse.PartialFailure)
+      case ServerResponse(Status.NotFound, _) => pureResult(RemoveFileResponse.FileNotFound)
     }
   }
 

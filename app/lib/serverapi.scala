@@ -3,6 +3,7 @@ package lib
 import java.time.ZonedDateTime
 
 import better.files.File
+import cats.data.NonEmptyList
 
 // https://jendakol.github.io/rbackup/server.html
 object serverapi {
@@ -65,6 +66,19 @@ object serverapi {
     case class Downloaded(file: File, fileVersion: RemoteFileVersion) extends DownloadResponse
 
     case class FileVersionNotFound(fileVersion: RemoteFileVersion) extends DownloadResponse
+
+  }
+
+  // remove file
+  sealed trait RemoveFileResponse
+
+  object RemoveFileResponse {
+
+    case object Success extends RemoveFileResponse
+
+    case class PartialFailure(failures: NonEmptyList[String]) extends RemoveFileResponse
+
+    case object FileNotFound extends RemoveFileResponse
 
   }
 
