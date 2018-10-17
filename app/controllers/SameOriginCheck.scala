@@ -2,12 +2,12 @@ package controllers
 
 import com.typesafe.scalalogging.StrictLogging
 import play.api.mvc.RequestHeader
-import utils.AllowedApiOrigins
+import utils.AllowedWsApiOrigins
 
 // imported from https://github.com/playframework/play-scala-websocket-example
 trait SameOriginCheck extends StrictLogging {
 
-  protected def allowedOrigins: AllowedApiOrigins
+  protected def allowedOrigins: AllowedWsApiOrigins
 
   /**
     * Checks that the WebSocket comes from the same origin.  This is necessary to protect

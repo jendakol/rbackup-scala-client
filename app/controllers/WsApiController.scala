@@ -18,13 +18,13 @@ import monix.eval.Task
 import play.api.libs.circe.Circe
 import play.api.libs.streams.ActorFlow
 import play.api.mvc._
-import utils.AllowedApiOrigins
+import utils.AllowedWsApiOrigins
 
 import scala.concurrent.Future
 import scala.util.Try
 
 @Singleton
-class WsApiController @Inject()(cc: ControllerComponents, protected override val allowedOrigins: AllowedApiOrigins)(
+class WsApiController @Inject()(cc: ControllerComponents, protected override val allowedOrigins: AllowedWsApiOrigins)(
     implicit system: ActorSystem,
     mat: Materializer)
     extends AbstractController(cc)

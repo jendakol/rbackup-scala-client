@@ -1,4 +1,7 @@
+import java.io.{File, FileOutputStream}
+
 import com.typesafe.sbt.packager.MappingsHelper._
+import sbtassembly.MergeStrategy
 
 import scala.sys.process.Process
 
@@ -41,6 +44,15 @@ libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "3.0.5" % "test"
 )
 
+libraryDependencies ~= {
+  //noinspection UnnecessaryPartialFunction
+  _ map {
+    case m =>
+      m.exclude("commons-logging", "commons-logging")
+        .exclude("com.typesafe.play", "sbt-link")
+  }
+}
+
 // Play framework hooks for development
 PlayKeys.playRunHooks += WebpackServer(file("./front"))
 
@@ -70,4 +82,44 @@ frontEndBuild := {
 
 frontEndBuild := (frontEndBuild dependsOn cleanFrontEndBuild).value
 
-dist := (dist dependsOn frontEndBuild).value
+lazy val makeProdJar = taskKey[Unit]("Creates a single fat JAR for production use")
+
+makeProdJar := (assembly dependsOn frontEndBuild).value
+
+mainClass in assembly := Some("play.core.server.ProdServerStart")
+fullClasspath in assembly += Attributed.blank(PlayKeys.playPackageAssets.value)
+
+val concatWithNewLine: MergeStrategy = new MergeStrategy {
+  val name = "concatWithNewLine"
+
+  def apply(tempDir: File, path: String, files: Seq[File]): Either[String, Seq[(File, String)]] = {
+    val file = File.createTempFile("sbtMergeTarget", ".tmp", tempDir)
+    val out = new FileOutputStream(file)
+    try {
+      files.reverse.foreach { f =>
+        IO.transfer(f, out)
+        out.write(s"\n\n// $f\n\n".getBytes)
+      }
+      Right(Seq(file -> path))
+    } finally {
+      out.close()
+    }
+  }
+}
+
+assemblyMergeStrategy in assembly := {
+  case manifest if manifest.contains("MANIFEST.MF") =>
+    // We don't need manifest files since sbt-assembly will create
+    // one with the given settings
+    MergeStrategy.discard
+  case reference if reference.contains("reference.conf") =>
+    // Keep the content for all reference-overrides.conf files
+    concatWithNewLine
+  case referenceOverrides if referenceOverrides.contains("reference-overrides.conf") =>
+    // Keep the content for all reference-overrides.conf files
+    MergeStrategy.concat
+  case x =>
+    // For all the other files, use the default sbt-assembly merge strategy
+    val oldStrategy = (assemblyMergeStrategy in assembly).value
+    oldStrategy(x)
+}
