@@ -18,7 +18,7 @@ name := "rbackup-client"
 
 version := "0.1"
 
-scalaVersion := "2.12.6"
+scalaVersion := "2.12.7"
 
 lazy val `rbackup-client` = (project in file(".")).enablePlugins(PlayScala)
 
