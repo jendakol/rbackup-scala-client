@@ -4,7 +4,7 @@ import scala.sys.process.Process
 
 lazy val Versions = new {
   val monix = "3.0.0-RC1"
-  val http4s = "0.18.15"
+  val http4s = "0.18.18"
   val scalikeJdbc = "3.3.1"
   val metricsVersion = "2.4.4"
 }
@@ -15,7 +15,7 @@ name := "rbackup-client"
 
 version := "0.1"
 
-scalaVersion := "2.12.6"
+scalaVersion := "2.12.7"
 
 lazy val `rbackup-client` = (project in file(".")).enablePlugins(PlayScala)
 
@@ -70,4 +70,10 @@ frontEndBuild := {
 
 frontEndBuild := (frontEndBuild dependsOn cleanFrontEndBuild).value
 
+sources in (Compile,doc) := Seq.empty
+publishArtifact in (Compile, packageDoc) := false
+
 dist := (dist dependsOn frontEndBuild).value
+
+PlayKeys.playDefaultPort := 3370
+PlayKeys.devSettings := Seq("play.server.http.port" -> "3370")
