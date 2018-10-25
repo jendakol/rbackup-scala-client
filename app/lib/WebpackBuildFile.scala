@@ -1,15 +1,52 @@
 package lib
 
-import java.io.File
+import java.net.URI
+import java.nio.file.{FileSystems, Files}
+import java.util
 
-object WebpackBuildFile {
-  private val d = new File("public/bundle")
-  val jsBundle: String = if (d.exists && d.isDirectory) {
-    d.listFiles.filter(_.isFile).toList.find(f => f.getName.contains("js.bundle.")).get.getName.replace(".gz", "")
-  } else ""
+import com.typesafe.scalalogging.StrictLogging
 
-  val cssBundle: String = if (d.exists && d.isDirectory) {
-    d.listFiles.filter(_.isFile).toList.find(f => f.getName.contains("style.bundle.")).get.getName.replace(".gz", "")
-  } else ""
+import scala.collection.JavaConverters._
+
+object WebpackBuildFile extends StrictLogging {
+
+  private val uri: URI = getClass.getClassLoader.getResource("public/bundle").toURI
+  logger.debug(s"Found bundle resources @ $uri")
+
+  private val uriParts: Array[String] = uri.toString.split("!")
+  private val fs = FileSystems.newFileSystem(URI.create(uriParts.head), new util.HashMap[String, Object]())
+  private val bundleDir = fs.getPath(uriParts(1))
+
+  logger.info(s"Locating built bundle at ${bundleDir.toUri}")
+
+  val jsBundleName: String = {
+    val packedFile = Files
+      .list(bundleDir)
+      .iterator()
+      .asScala
+      .filter(Files.isRegularFile(_))
+      .toList
+      .collectFirst {
+        case f if f.toString.contains("js.bundle.") && !f.toString.contains("gz") => f
+      }
+      .getOrElse(sys.error("Could not locate JS bundle"))
+
+    packedFile.getFileName.toString
+  }
+
+  val cssBundleName: String = {
+    val packedFile = Files
+      .list(bundleDir)
+      .iterator()
+      .asScala
+      .filter(Files.isRegularFile(_))
+      .toList
+      .collectFirst {
+        case f if f.toString.contains("style.bundle.") && !f.toString.contains("gz") => f
+      }
+      .getOrElse(sys.error("Could not locate styles bundle"))
+
+    packedFile.getFileName.toString
+  }
 
 }

@@ -1,4 +1,7 @@
+import java.io.{File, FileOutputStream}
+
 import com.typesafe.sbt.packager.MappingsHelper._
+import sbtassembly.MergeStrategy
 
 import scala.sys.process.Process
 
@@ -40,6 +43,15 @@ libraryDependencies ++= Seq(
   "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
   "org.scalatest" %% "scalatest" % "3.0.5" % "test"
 )
+
+libraryDependencies ~= {
+  //noinspection UnnecessaryPartialFunction
+  _ map {
+    case m =>
+      m.exclude("commons-logging", "commons-logging")
+        .exclude("com.typesafe.play", "sbt-link")
+  }
+}
 
 // Play framework hooks for development
 PlayKeys.playRunHooks += WebpackServer(file("./front"))
