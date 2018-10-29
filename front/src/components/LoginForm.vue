@@ -4,10 +4,10 @@
             <v-container fluid fill-height>
                 <v-layout align-center justify-center>
                     <v-flex xs12 sm8 md4>
-                        <v-tabs color="primary">
-                            <v-tab >Login</v-tab>
-                            <v-tab >Register</v-tab>
-                            <v-tab-item >
+                        <v-tabs color="primary" v-model="selectedTab">
+                            <v-tab>Login</v-tab>
+                            <v-tab>Register</v-tab>
+                            <v-tab-item>
                                 <v-card class="elevation-12">
                                     <v-card-text>
                                         <v-form @submit="login">
@@ -20,27 +20,27 @@
 
                                             <v-card-actions>
                                                 <v-spacer></v-spacer>
-                                                <v-btn color="primary" type="submit">Login</v-btn>
+                                                <v-btn color="primary" type="submit" :disabled="this.formsDisabled">Login</v-btn>
                                             </v-card-actions>
                                         </v-form>
                                     </v-card-text>
 
                                 </v-card>
                             </v-tab-item>
-                            <v-tab-item >
+                            <v-tab-item>
                                 <v-card class="elevation-12">
                                     <v-card-text>
                                         <v-form @submit="register">
                                             <v-text-field prepend-icon="home" name="host" type="text" title="Server host"
-                                                          v-model="loginForm.host"></v-text-field>
+                                                          v-model="registerForm.host"></v-text-field>
                                             <v-text-field prepend-icon="person" name="login" type="text"
-                                                          v-model="loginForm.username"></v-text-field>
+                                                          v-model="registerForm.username"></v-text-field>
                                             <v-text-field prepend-icon="lock" name="password" type="password"
-                                                          v-model="loginForm.password"></v-text-field>
+                                                          v-model="registerForm.password"></v-text-field>
 
                                             <v-card-actions>
                                                 <v-spacer></v-spacer>
-                                                <v-btn color="primary" type="submit">Create account</v-btn>
+                                                <v-btn color="primary" type="submit" :disabled="this.formsDisabled">Create account</v-btn>
                                             </v-card-actions>
                                         </v-form>
                                     </v-card-text>
@@ -68,7 +68,14 @@
                     host: null,
                     username: null,
                     password: null
-                }
+                },
+                registerForm: {
+                    host: null,
+                    username: null,
+                    password: null
+                },
+                formsDisabled: false,
+                selectedTab: 0
             }
         },
         props: {
@@ -79,11 +86,28 @@
             login(evt) {
                 evt.preventDefault();
 
+                if (this.loginForm.host == null || this.loginForm.host.trim() === "") {
+                    this.$snotify.warning("You must enter server host");
+                    return
+                }
+                if (this.loginForm.username == null || this.loginForm.username.trim() === "") {
+                    this.$snotify.warning("You must enter username");
+                    return
+                }
+                if (this.loginForm.password == null || this.loginForm.password.trim() === "") {
+                    this.$snotify.warning("You must enter password");
+                    return
+                }
+
+                this.formsDisabled = true;
+
                 this.asyncActionWithNotification("login", {
                         host: this.loginForm.host,
                         username: this.loginForm.username,
                         password: this.loginForm.password
                     }, "Logging in", (resp) => new Promise((success, error) => {
+                        this.formsDisabled = false;
+
                         if (resp.success) {
                             success("Login successful!");
                             this.$emit("login")
@@ -97,17 +121,38 @@
             register(evt) {
                 evt.preventDefault();
 
-                this.ajax("register", {
-                    host: this.loginForm.host,
-                    username: this.loginForm.username,
-                    password: this.loginForm.password
-                }).then(t => {
-                    if (t.success) {
-                        this.cloudResponseMessage = "Account registered: " + t.account_id
-                    } else {
-                        this.cloudResponseMessage = "Account NOT registered, because: " + t.reason
-                    }
-                })
+                if (this.registerForm.host == null || this.registerForm.host.trim() === "") {
+                    this.$snotify.warning("You must enter server host");
+                    return
+                }
+                if (this.registerForm.username == null || this.registerForm.username.trim() === "") {
+                    this.$snotify.warning("You must enter username");
+                    return
+                }
+                if (this.registerForm.password == null || this.registerForm.password.trim() === "") {
+                    this.$snotify.warning("You must enter password");
+                    return
+                }
+
+                this.formsDisabled = true;
+
+                this.asyncActionWithNotification("register", {
+                        host: this.registerForm.host,
+                        username: this.registerForm.username,
+                        password: this.registerForm.password
+                    }, "Creating account", (resp) => new Promise((success, error) => {
+                        this.formsDisabled = false;
+                        this.selectedTab = 0; // switch to login
+
+                        if (resp.success) {
+                            success("Account registered, go ahead and login!");
+                            this.loginForm = this.registerForm
+
+                        } else {
+                            error("Account NOT registered, because: " + t.reason)
+                        }
+                    })
+                )
             },
         }
     }

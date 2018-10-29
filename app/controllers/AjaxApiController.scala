@@ -37,7 +37,7 @@ class AjaxApiController @Inject()(cc: ControllerComponents, commandExecutor: Com
             case Right(json) =>
               Ok {
                 val str = json.pretty(JsonPrinter)
-                logger.trace(s"Sending AJAX response to ${jsonCommand.name}: $str")
+                logger.debug(s"Sending AJAX response to ${jsonCommand.name}: $str")
                 str
               }.as("application/json")
 
@@ -56,7 +56,10 @@ class AjaxApiController @Inject()(cc: ControllerComponents, commandExecutor: Com
           }
           .runAsync
 
-      case Left(err) => Future.successful(BadRequest(err.asJson.pretty(JsonPrinter)))
+      case Left(err) =>
+        val resp = err.asJson.pretty(JsonPrinter)
+        logger.debug(s"Sending AJAX error response to ${jsonCommand.name}: $resp", err)
+        Future.successful(BadRequest(resp))
     }
   }
 
