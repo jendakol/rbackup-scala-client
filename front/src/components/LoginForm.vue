@@ -56,8 +56,6 @@
 </template>
 
 <script>
-    const HostUrl = "localhost:9000";
-
     import axios from 'axios';
 
     export default {
