@@ -1,17 +1,14 @@
 package controllers
 
-import java.io.File
-
 import com.google.inject.Inject
-import com.typesafe.config.{Config, ConfigFactory}
 import lib.WebpackBuildFile
 import play.Environment
 import play.api.mvc._
+import utils.ConfigProperty
 
-class FrontController @Inject() (cc: ControllerComponents, env: Environment) extends AbstractController(cc){
-  val config: Config = ConfigFactory.parseFile(new File("conf/frontend.conf")).resolve()
-
+class FrontController @Inject()(cc: ControllerComponents, env: Environment, @ConfigProperty("webpack.port") port: Int)
+    extends AbstractController(cc) {
   def index = Action {
-    Ok(views.html.index.render(env, config.getInt("webpack.port"), WebpackBuildFile.jsBundle, WebpackBuildFile.cssBundle))
+    Ok(views.html.index.render(env, port, WebpackBuildFile.jsBundleName, WebpackBuildFile.cssBundleName))
   }
 }

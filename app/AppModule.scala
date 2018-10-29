@@ -1,20 +1,23 @@
 import java.util.concurrent.Executors
 
 import com.avast.metrics.scalaapi.Monitor
-import com.typesafe.config._
 import com.typesafe.scalalogging.StrictLogging
 import lib._
 import monix.execution.Scheduler
 import monix.execution.schedulers.SchedulerService
 import net.codingwell.scalaguice.ScalaModule
+import play.api.{Configuration, Environment}
 import scalikejdbc._
 import scalikejdbc.config.DBs
-import utils.AllowedApiOrigins
+import utils.AllowedWsApiOrigins
 
 import scala.collection.JavaConverters._
 
-class AppModule extends ScalaModule with PropertiesConfiguration with StrictLogging {
-  private lazy val config = ConfigFactory.load()
+class AppModule(environment: Environment, configuration: Configuration)
+    extends ScalaModule
+    with PropertiesConfiguration
+    with StrictLogging {
+  private val config = configuration.underlying
 
   DBs.setupAll()
 
@@ -30,7 +33,7 @@ class AppModule extends ScalaModule with PropertiesConfiguration with StrictLogg
 
     val rootMonitor = Monitor.noOp()
 
-    bind[AllowedApiOrigins].toInstance(AllowedApiOrigins(config.getStringList("allowedWsApiOrigins").asScala))
+    bind[AllowedWsApiOrigins].toInstance(AllowedWsApiOrigins(config.getStringList("allowedWsApiOrigins").asScala))
 
     val cloudConnector = CloudConnector.fromConfig(config.getConfig("cloudConnector"))
     val dao = new Dao(executorService)

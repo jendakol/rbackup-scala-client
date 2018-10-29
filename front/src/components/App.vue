@@ -16,7 +16,7 @@
             </div>
         </div>
 
-        <vue-snotify></vue-snotify>
+        <vue-snotify/>
     </v-app>
 
 </template>
@@ -34,7 +34,7 @@
         },
         data() {
             return {
-                hostUrl: "localhost:9000",
+                hostUrl: "localhost:3370",
                 clientStatus: null,
             }
         },

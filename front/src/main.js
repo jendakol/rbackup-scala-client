@@ -2,7 +2,7 @@ import Vue from 'vue';
 import App from './components/App.vue';
 import Vuetify from 'vuetify'
 import '../sass/style.scss';
-import Snotify, { SnotifyPosition } from 'vue-snotify'
+import Snotify, { SnotifyPosition } from 'vue-snotify/vue-snotify.min.js'
 
 const options = {
     toast: {
