@@ -1,0 +1,8 @@
+<service>
+      <id>rbackup-client</id>
+      <name>RBackup Client</name>
+      <description>This service runs RBackup client</description>
+      <executable>%BASE%\bin\rbackup-client.bat</executable>
+      <arguments>-Dplay.http.secret.key="$1$IJ6TmFA.$qN1Yc7PpL79bQWfC1Ohzi1" -Dhttp.port=3370 -Dconfig.file="%BASE%\application.conf"</arguments>
+      <logmode>rotate</logmode>
+    </service>
