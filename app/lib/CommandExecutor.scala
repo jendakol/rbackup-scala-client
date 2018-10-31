@@ -23,6 +23,7 @@ import utils.ConfigProperty
 class CommandExecutor @Inject()(cloudConnector: CloudConnector,
                                 filesHandler: FilesHandler,
                                 filesRegistry: CloudFilesRegistry,
+                                tasksManager: TasksManager,
                                 dao: Dao,
                                 settings: Settings,
                                 stateManager: StateManager,

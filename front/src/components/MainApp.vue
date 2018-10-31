@@ -122,6 +122,11 @@
                             this.logout()
                         }
                     },
+                    {
+                        title: 'Ping', icon: 'info', action: () => {
+                            this.ping()
+                        }
+                    },
                 ]
             }
         },
@@ -166,6 +171,9 @@
                         error(resp.message)
                     }
                 }));
+            },
+            ping() {
+                this.ajax("ping", {});
             },
             addWsListener(listener) {
                 this.wsListeners.push(listener)

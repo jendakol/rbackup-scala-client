@@ -44,6 +44,11 @@ object App {
       r.value.onErrorRestartIf(cond)
     }
 
+    def unwrapResult: Task[A] = r.value.flatMap {
+      case Right(value) => Task.now(value)
+      case Left(t) => Task.raiseError(t)
+    }
+
     def runAsync(callback: PartialFunction[Either[Throwable, A], Any])(implicit s: Scheduler): Future[Either[AppException, A]] = {
       r.value.runAsync.andThen {
         case scala.util.Success(ei) => if (callback.isDefinedAt(ei)) callback.apply(ei)

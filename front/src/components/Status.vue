@@ -23,7 +23,15 @@
                                                       :asyncActionWithNotification="this.asyncActionWithNotification"/>
                                 </v-card>
                             </v-flex>
-
+                            <v-flex xs12>
+                                <v-card>
+                                    <v-toolbar dense color="primary">
+                                        <v-toolbar-title class="white--text">Running tasks</v-toolbar-title>
+                                    </v-toolbar>
+                                    <TasksStatus :ajax="this.ajax" :registerWsListener="this.registerWsListener"
+                                                      :asyncActionWithNotification="this.asyncActionWithNotification"/>
+                                </v-card>
+                            </v-flex>
                         </v-layout>
                     </v-container>
                 </v-card>
@@ -35,6 +43,7 @@
 <script>
     import ConnectionStatus from '../components/status/ConnectionStatus.vue';
     import UploadingsStatus from '../components/status/UploadingsStatus.vue';
+    import TasksStatus from '../components/status/TasksStatus.vue';
 
     export default {
         name: "Status",
@@ -45,7 +54,8 @@
         },
         components: {
             ConnectionStatus,
-            UploadingsStatus
+            UploadingsStatus,
+            TasksStatus,
         },
         data() {
             return {}
