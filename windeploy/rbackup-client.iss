@@ -37,6 +37,7 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 
 [Run]
+Filename: "net.exe"; Parameters: "stop rbackup-client"; Flags: waituntilterminated runhidden
 Filename: "{app}\rbackup-client.exe"; Parameters: "uninstall"; Flags: waituntilterminated runhidden; StatusMsg: "Uninstalling the old service..."
 Filename: "{app}\rbackup-client.exe"; Parameters: "install"; Flags: waituntilterminated runhidden; StatusMsg: "Installing the service..."
 Filename: "net.exe"; Parameters: "start rbackup-client"; Flags: waituntilterminated runhidden
