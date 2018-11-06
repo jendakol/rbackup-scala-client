@@ -92,18 +92,11 @@
             restoreVersion(version) {
                 let path = version.path;
                 let versionId = version.versionId;
-                let versionDateTime = version.text;
 
-                this.asyncActionWithNotification("download", {
+                this.ajax("download", {
                     path: path,
                     version_id: versionId
-                }, "Restoring " + path + " to " + versionDateTime, (resp) => new Promise((success, error) => {
-                    if (resp.success) {
-                        success("File " + path + " successfully restored to " + versionDateTime + "!")
-                    } else {
-                        error(resp.message)
-                    }
-                }));
+                });
             },
             restoreLast() {
                 let versions = this.rightClicked.children;

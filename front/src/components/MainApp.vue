@@ -102,17 +102,20 @@
                 drawerMenu: [
                     {
                         title: 'Status', icon: 'dashboard', action: () => {
-                            this.visiblePage = "status"
+                            this.visiblePage = "status";
+                            this.sendInitEvent();
                         }
                     },
                     {
                         title: 'Backup', icon: 'cloud_upload', action: () => {
-                            this.visiblePage = "backup"
+                            this.visiblePage = "backup";
+                            this.sendInitEvent();
                         }
                     },
                     {
                         title: 'Restore', icon: 'cloud_download', action: () => {
-                            this.visiblePage = "restore"
+                            this.visiblePage = "restore";
+                            this.sendInitEvent();
                         }
                     }
                 ],
@@ -158,9 +161,14 @@
                         this.isConnected = true;
                         this.$snotify.success("Connection to client backend was successful", {timeout: 1500});
                         clearInterval(this.connectionCheck);
-                        this.ws.send(JSON.stringify({name: "init"}));
+                        this.sendInitEvent()
                     }
                 }, 1000);
+            },
+            sendInitEvent() {
+                if (this.ws.readyState === 1) {
+                    this.ws.send(JSON.stringify({type: "init", data: {page: this.visiblePage}}));
+                } else this.initWs()
             },
             logout() {
                 this.asyncActionWithNotification("logout", {}, "Logging out", (resp) => new Promise((success, error) => {
@@ -181,7 +189,30 @@
             receiveWs(message) {
                 this.wsListeners.forEach((listener) => {
                     listener(message)
-                })
+                });
+
+                switch (message.type) {
+                    case "finishUpload": {
+                        let resp = message.data;
+
+                        if (resp.success) {
+                            this.$snotify.success("Manual upload of " + resp.path + " was successful!", {timeout: 5000})
+                        } else {
+                            this.$snotify.error("Upload of " + resp.path + " was NOT successful, because " + resp.reason, {timeout: 10000})
+                        }
+                    }
+                        break;
+                    case "finishDownload": {
+                        let resp = message.data;
+
+                        if (resp.success) {
+                            this.$snotify.success(resp.path + " was successfully restored to " + resp.time + "!", {timeout: 5000})
+                        } else {
+                            this.$snotify.error("Download of " + resp.path + " was NOT successful, because: " + resp.reason, {timeout: 10000})
+                        }
+                    }
+                        break;
+                }
             },
         },
     }

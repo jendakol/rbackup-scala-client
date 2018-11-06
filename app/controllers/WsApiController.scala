@@ -12,9 +12,12 @@ import io.circe.generic.extras.auto._
 import io.circe.syntax._
 import io.circe.{Json, Printer}
 import javax.inject._
-import lib.AppException.WsException
+import lib.App
+import lib.App._
+import lib.AppException.{ParsingFailure, WsException}
 import lib.CirceImplicits._
 import monix.eval.Task
+import monix.execution.Scheduler
 import play.api.libs.circe.Circe
 import play.api.libs.streams.ActorFlow
 import play.api.mvc._
@@ -22,15 +25,19 @@ import utils.AllowedWsApiOrigins
 
 import scala.concurrent.Future
 import scala.util.Try
+import scala.util.control.NonFatal
 
 @Singleton
 class WsApiController @Inject()(cc: ControllerComponents, protected override val allowedOrigins: AllowedWsApiOrigins)(
     implicit system: ActorSystem,
-    mat: Materializer)
+    mat: Materializer,
+    sch: Scheduler)
     extends AbstractController(cc)
     with Circe
     with SameOriginCheck
     with StrictLogging {
+
+  private var eventsCallback: Option[Event => App.Result[Unit]] = None
 
   def socket: WebSocket = WebSocket.acceptOrResult[String, String] {
     case rh if sameOriginCheck(rh) =>
@@ -58,7 +65,7 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
         out.get() match {
           case Some(o) =>
             Try {
-              logger.trace(s"Sending WS message: $wsMessage")
+              logger.debug(s"Sending WS message: $wsMessage")
 
               o ! wsMessage.asJson.pretty(jsonPrinter)
             }.toEither
@@ -70,6 +77,12 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
     }
   }
 
+  def send(`type`: String, data: Json): lib.App.Result[Unit] = send(WsMessage(`type`, data))
+
+  def setEventCallback(callback: Event => App.Result[Unit]): Unit = {
+    this.eventsCallback = Option(callback)
+  }
+
   private class WebSocketApiActor(out: ActorRef) extends Actor with StrictLogging {
     def receive: Actor.Receive = {
       case content: String =>
@@ -77,6 +90,27 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
         // TODO
 
         WsApiController.this.out.set(Option(out))
+
+        eventsCallback.foreach { callback =>
+          EitherT(
+            Task[Either[io.circe.Error, Event]](
+              for {
+                json <- io.circe.parser.parse(content)
+                cursor = json.hcursor
+                eventType <- cursor.get[String]("type")
+                event <- eventType match {
+                  case "init" => cursor.get[InitEvent]("data")
+                }
+              } yield {
+                event
+              }
+            ))
+            .leftMap(ParsingFailure(content, _))
+            .flatMap(callback)
+            .runAsync {
+              case Left(NonFatal(e)) => logger.warn(s"Could not propagate WS event $content", e)
+            }
+        }
     }
   }
 
@@ -87,3 +121,7 @@ object WsApiController {
 }
 
 case class WsMessage(`type`: String, data: Json)
+
+sealed trait Event
+
+case class InitEvent(page: String) extends Event

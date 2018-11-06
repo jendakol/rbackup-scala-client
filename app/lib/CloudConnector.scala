@@ -1,6 +1,6 @@
 package lib
 
-import java.io.{ByteArrayInputStream, InputStream}
+import java.io.{ByteArrayInputStream, InputStream, OutputStream}
 import java.net.ConnectException
 import java.nio.file.AccessDeniedException
 import java.util.concurrent.TimeoutException
@@ -34,7 +34,6 @@ import scala.concurrent.duration._
 
 class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Scheduler) extends StrictLogging {
 
-  // TODO retries
   // TODO monitoring
 
   def registerAccount(rootUri: Uri, username: String, password: String): Result[RegistrationResponse] = {
@@ -71,12 +70,13 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
     }
   }
 
-  def download(fileVersion: RemoteFileVersion, dest: File)(implicit session: ServerSession): Result[DownloadResponse] = EitherT {
+  def download(fileVersion: RemoteFileVersion, dest: File)(callback: (Long, Double, Boolean) => Unit)(
+      implicit session: ServerSession): Result[DownloadResponse] = EitherT {
     logger.debug(s"Downloading file $fileVersion")
 
     httpClient
       .fetch(authenticatedRequest(Method.GET, "download", Map("file_version_id" -> fileVersion.version.toString))) {
-        case resp if resp.status == Status.Ok => receiveStreamedFile(fileVersion, dest, resp)
+        case resp if resp.status == Status.Ok => receiveStreamedFile(fileVersion, dest, resp)(callback)
         case resp if resp.status == Status.NotFound => Task.now(Right(DownloadResponse.FileVersionNotFound(fileVersion)))
       }
       .onErrorRecover {
@@ -191,12 +191,19 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
       (cis, canc) = wrapWithStats(fis, callback(_, _, false))
       inputStream = new InputStreamWithSha256(cis)
       request <- createRequest(rootUri, inputStream)
-      result <- exec(request)(pf).map { res => // cancel stats reporting and close the IS
-        logger.debug(s"End stats sending for ${file.pathAsString}, file was uploaded")
-        canc.cancel()
-        inputStream.close()
-        res
-      }
+      result <- exec(request)(pf)
+        .map { res => // cancel stats reporting and close the IS
+          logger.debug(s"End stats sending for ${file.pathAsString}, file was uploaded")
+          canc.cancel()
+          inputStream.close()
+          res
+        }
+        .doOnCancel(Task {
+          logger.debug(s"End stats sending for ${file.pathAsString}, file upload was cancelled")
+          callback(file.size, 0, true) // send final/last stats
+          canc.cancel()
+          inputStream.close()
+        })
     } yield {
       val (_, speed) = cis.snapshot
       logger.debug(s"File ${file.pathAsString} uploaded, sent finalizing stats to UI")
@@ -206,15 +213,74 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
     }
   }
 
-  private def wrapWithStats[A](fis: InputStream, callback: (Long, Double) => Unit): (StatsInputStream, Cancelable) = {
-    val cis = new StatsInputStream(fis)(scheduler)
+  private def receiveStreamedFile(fileVersion: RemoteFileVersion, dest: File, resp: Response[Task])(
+      callback: (Long, Double, Boolean) => Unit): Task[Either[AppException, DownloadResponse]] = {
+    if (!dest.isReadable || !dest.isWriteable) {
+      logger.debug(s"File $dest is not readable or writeable!")
+      Task.now(Left(AppException.AccessDenied(dest)))
+    } else {
+      `Content-Length`.from(resp.headers) match {
+        case Some(clh) =>
+          val fileCopier = new FileCopier
 
-    val canc = scheduler.scheduleAtFixedRate(0.second, 1.second) {
-      val (bytes, speed) = cis.snapshot
-      callback(bytes, speed)
+          Task {
+            if (dest.exists) dest.delete()
+            wrapWithStats(dest.newOutputStream(), callback(_, _, false))
+          }.flatMap {
+              case (fileOs, canc) =>
+                resp.body.chunks
+                  .map { bytes =>
+                    val bis = new ByteArrayInputStream(bytes.toArray)
+                    val copied = fileCopier.copy(bis, fileOs)
+                    bis.close()
+                    copied
+                  }
+                  .compile
+                  .toVector
+                  .map { chunksSizes =>
+                    val transferred = chunksSizes.sum
+
+                    fileOs.close() // all data has been transferred
+                    canc.cancel()
+
+                    val (_, speed) = fileOs.snapshot
+                    logger.debug(s"File ${dest.pathAsString} downloaded, sent finalizing stats to UI")
+                    callback(fileVersion.size, speed, true) // send final/last stats
+
+                    if (clh.length != transferred) {
+                      Left(AppException
+                        .InvalidResponseException(resp.status.code, "-stream-", s"Expected ${clh.length} B but got $transferred B"))
+                    } else {
+                      val transferredSha = fileCopier.finalSha256
+
+                      if (transferredSha != fileVersion.hash) {
+                        Left(
+                          AppException
+                            .InvalidResponseException(resp.status.code,
+                                                      "-stream-",
+                                                      s"Expected SHA256 ${fileVersion.hash} but got $transferredSha"))
+                      } else {
+                        Right(DownloadResponse.Downloaded(dest, fileVersion))
+                      }
+                    }
+                  }
+                  .doOnCancel(Task {
+                    logger.debug(s"End stats sending for ${dest.pathAsString}, file upload was cancelled")
+                    callback(dest.size, 0, true) // send final/last stats
+                    canc.cancel()
+                    fileOs.close()
+                  })
+            }
+            .onErrorRecover {
+              case e: AccessDeniedException =>
+                logger.debug(s"Error while accessing file $dest", e)
+                Left(AppException.AccessDenied(dest, e))
+            }
+            .cancelable
+
+        case None => Task.now(Left(AppException.InvalidResponseException(resp.status.code, "-stream-", "Missing Content-Length header")))
+      }
     }
-
-    (cis, canc)
   }
 
   private def exec[A](request: Request[Task])(pf: PartialFunction[ServerResponse, Result[A]]): Result[A] = EitherT {
@@ -261,65 +327,31 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
         case e: ConnectException => Left(ServerNotResponding(e))
         case e: TimeoutException => Left(ServerNotResponding(e))
       }
+      .cancelable
   }
 
-  private def receiveStreamedFile(fileVersion: RemoteFileVersion,
-                                  dest: File,
-                                  resp: Response[Task]): Task[Either[AppException, DownloadResponse]] = {
-    if (!dest.isReadable || !dest.isWriteable) {
-      logger.debug(s"File $dest is not readable or writeable!")
-      Task.now(Left(AppException.AccessDenied(dest)))
-    } else {
-      `Content-Length`.from(resp.headers) match {
-        case Some(clh) =>
-          val fileCopier = new FileCopier
+  private def wrapWithStats[A](fis: InputStream, callback: (Long, Double) => Unit): (StatsInputStream, Cancelable) = {
+    val cis = new StatsInputStream(fis)(scheduler)
 
-          Task {
-            if (dest.exists) dest.delete()
-            dest.newOutputStream()
-          }.flatMap { fileOs =>
-              resp.body.chunks
-                .map { bytes =>
-                  val bis = new ByteArrayInputStream(bytes.toArray)
-                  val copied = fileCopier.copy(bis, fileOs)
-                  bis.close()
-                  copied
-                }
-                .compile
-                .toVector
-                .map { chunksSizes =>
-                  val transferred = chunksSizes.sum
-
-                  fileOs.close() // all data has been transferred
-
-                  if (clh.length != transferred) {
-                    Left(AppException
-                      .InvalidResponseException(resp.status.code, "-stream-", s"Expected ${clh.length} B but got $transferred B"))
-                  } else {
-                    val transferredSha = fileCopier.finalSha256
-
-                    if (transferredSha != fileVersion.hash) {
-                      Left(
-                        AppException
-                          .InvalidResponseException(resp.status.code,
-                                                    "-stream-",
-                                                    s"Expected SHA256 ${fileVersion.hash} but got $transferredSha"))
-                    } else {
-                      Right(DownloadResponse.Downloaded(dest, fileVersion))
-                    }
-                  }
-                }
-            }
-            .onErrorRecover {
-              case e: AccessDeniedException =>
-                logger.debug(s"Error while accessing file $dest", e)
-                Left(AppException.AccessDenied(dest, e))
-            }
-
-        case None => Task.now(Left(AppException.InvalidResponseException(resp.status.code, "-stream-", "Missing Content-Length header")))
-      }
+    val canc = scheduler.scheduleAtFixedRate(0.second, 1.second) {
+      val (bytes, speed) = cis.snapshot
+      callback(bytes, speed)
     }
+
+    (cis, canc)
   }
+
+  private def wrapWithStats[A](fos: OutputStream, callback: (Long, Double) => Unit): (StatsOutputStream, Cancelable) = {
+    val cis = new StatsOutputStream(fos)(scheduler)
+
+    val canc = scheduler.scheduleAtFixedRate(0.second, 1.second) {
+      val (bytes, speed) = cis.snapshot
+      callback(bytes, speed)
+    }
+
+    (cis, canc)
+  }
+
 }
 
 case class ServerResponse(status: Status, body: Option[Json])

@@ -2,8 +2,9 @@ package lib
 
 import better.files.File
 import cats.data.EitherT
-import cats.syntax.either._
+import cats.syntax.all._
 import com.typesafe.scalalogging.StrictLogging
+import controllers.{Event, InitEvent, WsApiController}
 import io.circe.Json
 import io.circe.generic.extras.auto._
 import io.circe.parser._
@@ -13,7 +14,7 @@ import lib.App._
 import lib.AppException.LoginRequired
 import lib.CirceImplicits._
 import lib.clientapi.{FileTree, FileTreeNode}
-import lib.serverapi.{DownloadResponse, LoginResponse, UploadResponse}
+import lib.serverapi.{DownloadResponse, LoginResponse, RemoteFileVersion, UploadResponse}
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.http4s.Uri
@@ -24,19 +25,27 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
                                 filesHandler: FilesHandler,
                                 filesRegistry: CloudFilesRegistry,
                                 tasksManager: TasksManager,
+                                wsApiController: WsApiController,
                                 dao: Dao,
                                 settings: Settings,
                                 stateManager: StateManager,
                                 @ConfigProperty("deviceId") deviceId: String)(implicit scheduler: Scheduler)
     extends StrictLogging {
 
+  wsApiController.setEventCallback(processEvent)
+
   def execute(command: Command): Result[Json] = command match {
     case PingCommand =>
       withSession { implicit session =>
-        cloudConnector.status
-          .flatMap { str =>
-            parse(s"""{"serverResponse": "$str"}""").toResult
-          }
+        import cats.syntax.all._
+
+        import scala.concurrent.duration._
+
+        tasksManager.start(RunningTask.FileUpload("theName"), EitherT.right(Task.unit.delayResult(10.seconds))) >>
+          cloudConnector.status
+            .flatMap { str =>
+              parse(s"""{"serverResponse": "$str"}""").toResult
+            }
       }
 
     case StatusCommand =>
@@ -56,87 +65,31 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
 
     case LoginCommand(host, username, password) =>
       // TODO check the URL
-
-      EitherT
-        .fromEither[Task] {
-          Uri.fromString(host).leftMap[AppException](AppException.InvalidArgument("Could not parse provided host", _))
-        }
-        .flatMap { uri =>
-          cloudConnector.login(uri, deviceId, username, password).flatMap {
-            case LoginResponse.SessionCreated(sessionId) =>
-              logger.info("Session on backend created")
-              stateManager.login(sessionId).map(_ => parseSafe("""{ "success": true }"""))
-            case LoginResponse.SessionRecovered(sessionId) =>
-              logger.info("Session on backend restored")
-              stateManager.login(sessionId).map(_ => parseSafe("""{ "success": true }"""))
-            case LoginResponse.Failed =>
-              pureResult(parseSafe("""{ "success": false }"""))
-          }
-        }
+      login(host, username, password)
 
     case LogoutCommand =>
       settings.session(None).map(_ => parseSafe("""{ "success": true }"""))
 
-    case UploadManually(path) =>
+    case CancelTaskCommand(id) =>
+      tasksManager.cancel(id).map {
+        case Some(rt) => parseSafe(s"""{ "success": true, "task": ${rt.toJson} }""")
+        case None => parseSafe("""{ "success": false, "reason": "Task not found" }""")
+      }
+
+    case UploadCommand(path) =>
       withSession { implicit session =>
         val file = File(path)
 
-        for {
-          results <- filesHandler.uploadNow(file)
-          _ <- filesRegistry.reportBackedUpFilesList
-        } yield {
-          if (results.size == 1) {
-            results.head match {
-              case UploadResponse.Uploaded(_) => parseSafe("""{ "success": true }""")
-              case UploadResponse.Sha256Mismatch => parseSafe("""{ "success": false, "reason": "SHA-256 mismatch" }""")
-            }
-          } else {
-            val failures = results.collect {
-              case UploadResponse.Sha256Mismatch => "Could not upload file" // TODO this is sad
-            }
+        // TODO check file exists
 
-            if (failures.nonEmpty) {
-              parseSafe(s"""{ "success": false, "reason": "${failures.mkString("[", ", ", "]")}" }""")
-            } else {
-              parseSafe("""{ "success": true }""")
-            }
-          }
-        }
+        uploadManually(file)
       }
 
-    case Download(path, versionId) =>
+    case DownloadCommand(path, versionId) =>
       logger.debug(s"Downloading $path with versionId $versionId")
 
       withSession { implicit session =>
-        filesRegistry
-          .get(File(path))
-          .map(_.flatMap { file =>
-            file.versions.find(_.version == versionId).map(file -> _)
-          })
-          .flatMap {
-            case Some((remoteFile, version)) =>
-              cloudConnector
-                .download(version, File(remoteFile.originalName))
-                .map {
-                  case DownloadResponse.Downloaded(_, _) =>
-                    parseSafe(s"""{ "success": true }""")
-                  case DownloadResponse.FileVersionNotFound(_) =>
-                    parseSafe(s"""{ "success": false, "message": "Download of $path was not successful\\nVersion not found on server" }""")
-                }
-                .recover {
-                  case AppException.AccessDenied(_, _) =>
-                    parseSafe(s"""{ "success": false, "message": "Download of $path was not successful<br>Access denied" }""")
-                  case AppException.ServerNotResponding(_) =>
-                    parseSafe(s"""{ "success": false, "message": "Server does not respond" }""")
-                }
-
-            case None =>
-              pureResult(
-                parseSafe {
-                  s"""{ "success": false, "message": "Download of $path was not successful<br>Version not found" }"""
-                }
-              )
-          }
+        download(File(path), versionId)
       }
 
     case BackedUpFileListCommand =>
@@ -199,6 +152,137 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
     //        Json.Null
     //      }
 
+  }
+
+  private def login(host: String, username: String, password: String): Result[Json] = {
+    EitherT
+      .fromEither[Task] {
+        Uri.fromString(host).leftMap[AppException](AppException.InvalidArgument("Could not parse provided host", _))
+      }
+      .flatMap { uri =>
+        cloudConnector.login(uri, deviceId, username, password).flatMap {
+          case LoginResponse.SessionCreated(sessionId) =>
+            logger.info("Session on backend created")
+            stateManager.login(sessionId).map(_ => parseSafe("""{ "success": true }"""))
+          case LoginResponse.SessionRecovered(sessionId) =>
+            logger.info("Session on backend restored")
+            stateManager.login(sessionId).map(_ => parseSafe("""{ "success": true }"""))
+          case LoginResponse.Failed =>
+            pureResult(parseSafe("""{ "success": false }"""))
+        }
+      }
+  }
+
+  private def processEvent(event: Event): Result[Unit] = event match {
+    case InitEvent(page) =>
+      page match {
+        case "status" => tasksManager.notifyUi()
+        case _ => pureResult(())
+      }
+  }
+
+  private def uploadManually(file: File)(implicit ss: ServerSession): Result[Json] = {
+    def reportResult(results: List[UploadResponse]): Result[Unit] = {
+      val respJson = if (results.size == 1) {
+        results.head match {
+          case UploadResponse.Uploaded(_) => parseSafe(s"""{ "success": true, "path": "${file.pathAsString}" }""")
+          case UploadResponse.Sha256Mismatch =>
+            parseSafe(s"""{ "success": false,, "path": "${file.pathAsString}" "reason": "SHA-256 mismatch" }""")
+        }
+      } else {
+        val failures = results.collect {
+          case UploadResponse.Sha256Mismatch => "Could not upload file" // TODO this is sad
+        }
+
+        if (failures.nonEmpty) {
+          parseSafe(s"""{ "success": false, "path": "${file.pathAsString}", "reason": "${failures.mkString("[", ", ", "]")}" }""")
+        } else {
+          parseSafe(s"""{ "success": true, "path": "${file.pathAsString}"}""")
+        }
+      }
+
+      wsApiController.send("finishUpload", respJson)
+    }
+
+    val uploadTask: Result[Unit] = for {
+      results <- filesHandler.uploadNow(file)
+      _ <- filesRegistry.reportBackedUpFilesList
+      _ <- reportResult(results)
+    } yield ()
+
+    val runningTask = if (file.isDirectory) {
+      RunningTask.DirUpload(file.pathAsString)
+    } else {
+      RunningTask.FileUpload(file.pathAsString)
+    }
+
+    tasksManager
+      .start(runningTask, uploadTask)
+      .map { _ =>
+        parseSafe("""{ "success": true }""")
+      }
+  }
+
+  /*
+   * .recover {
+              case AppException.AccessDenied(_, _) =>
+                parseSafe(s"""{ "success": false, "path": "${file.pathAsString}", "reason": "Access denied" }""")
+              case AppException.ServerNotResponding(_) =>
+                parseSafe(s"""{ "success": false, "path": "${file.pathAsString}", "reason": "Server does not respond" }""")
+            }
+   * */
+
+  private def download(file: File, versionId: Long)(implicit ss: ServerSession): Result[Json] = {
+    def reportResult(fileVersion: RemoteFileVersion)(results: List[DownloadResponse]): Result[Unit] = {
+      val respJson = if (results.size == 1) {
+        results.head match {
+          case DownloadResponse.Downloaded(_, _) =>
+            parseSafe(
+              s"""{ "success": true, "path": "${file.pathAsString}", "time": "${DateTimeFormatter.format(fileVersion.created)}" }""")
+          case DownloadResponse.FileVersionNotFound(_) =>
+            parseSafe(s"""{ "success": false,, "path": "${file.pathAsString}" "reason": "Version not found" }""")
+        }
+      } else {
+        val failures = results.collect {
+          case DownloadResponse.FileVersionNotFound(_) => "Version not found" // TODO this is weird
+        }
+
+        if (failures.nonEmpty) {
+          parseSafe(s"""{ "success": false, "path": "${file.pathAsString}", "reason": "${failures.mkString("[", ", ", "]")}" }""")
+        } else {
+          parseSafe(s"""{ "success": true, "path": "${file.pathAsString}"}""")
+        }
+      }
+
+      wsApiController.send("finishDownload", respJson)
+    }
+
+    val downloadTask: Result[Unit] = filesRegistry
+      .get(file)
+      .map(_.flatMap { file =>
+        file.versions.collectFirst {
+          case fv if fv.version == versionId => file -> fv
+        }
+      })
+      .flatMap {
+        case Some((remoteFile, fileVersion)) =>
+          filesHandler
+            .download(remoteFile, fileVersion, File(remoteFile.originalName))
+            .flatMap(reportResult(fileVersion))
+
+        case None =>
+          wsApiController.send("finishDownload", parseSafe {
+            s"""{ "success": false, "path": "${file.pathAsString}", "reason": "Version not found" }"""
+          })
+      }
+
+    val runningTask = RunningTask.FileDownload(file.pathAsString)
+
+    tasksManager
+      .start(runningTask, downloadTask)
+      .map { _ =>
+        parseSafe("""{ "success": true }""")
+      }
   }
 
   private def withSession[A](f: ServerSession => Result[A]): Result[A] = {

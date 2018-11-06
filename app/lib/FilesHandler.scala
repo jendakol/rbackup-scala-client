@@ -4,7 +4,6 @@ import java.util.concurrent.atomic.AtomicInteger
 
 import better.files.File
 import cats.data.EitherT
-import cats.syntax.all._
 import com.avast.metrics.scalaapi.Monitor
 import com.typesafe.scalalogging.StrictLogging
 import controllers.{WsApiController, WsMessage}
@@ -13,7 +12,7 @@ import io.circe.syntax._
 import javax.inject.{Inject, Named}
 import lib.App._
 import lib.CirceImplicits._
-import lib.serverapi.UploadResponse
+import lib.serverapi.{DownloadResponse, RemoteFile, RemoteFileVersion, UploadResponse}
 import monix.eval.Task
 import monix.execution.Scheduler
 import monix.reactive.Observable
@@ -23,37 +22,82 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
                              filesRegistry: CloudFilesRegistry,
                              wsApiController: WsApiController,
                              settings: Settings,
-                             @ConfigProperty("fileHandler.uploadParallelism") uploadParallelism: Int,
+                             @ConfigProperty("fileHandler.parallelism") maxParallelism: Int,
                              @ConfigProperty("fileHandler.retries") retries: Int,
                              @Named("FilesHandler") monitor: Monitor)(implicit sch: Scheduler)
     extends AutoCloseable
     with StrictLogging {
 
-  private val uploadingCnt = new AtomicInteger(0)
+  private val transferringCnt = new AtomicInteger(0)
+  monitor.gauge("transferring")(() => transferringCnt.get())
 
-  monitor.gauge("uploading")(() => uploadingCnt.get())
   private val uploadedMeter = monitor.meter("uploaded")
-  private val uploadedFailedMeter = monitor.meter("uploaded")
+  private val uploadedFailedMeter = monitor.meter("uploadFailures")
 
-  private val uploadSemaphore = fs2.async.semaphore[Task](uploadParallelism).toIO.unsafeRunSync()
+  private val downloadedMeter = monitor.meter("downloaded")
+  private val downloadedFailedMeter = monitor.meter("downloadFailures")
 
-  //  def uploadLater(file: File): Task[Unit] = ???
-  //
-  //  private def handleFile(file: File): Task[FileHandlingResult] = {}
-  //
-  //  private def upload(fileResult: FileHandlingResult)(implicit sessionId: SessionId): Task[Unit] = fileResult match {
-  //    case FileHandlingResult.ToBeUploaded(file) =>
-  //      upload(file)
-  //
-  //    case FileHandlingResult.Handled => Task.unit
-  //  }
+  private val semaphore = fs2.async.semaphore[Task](maxParallelism).toIO.unsafeRunSync()
+
+  def download(remoteFile: RemoteFile, remoteFileVersion: RemoteFileVersion, dest: File)(
+      implicit session: ServerSession): Result[List[DownloadResponse]] = {
+    // TODO support DIRs download
+
+    withSemaphore {
+      logger.debug(s"Downloading ${transferringCnt.incrementAndGet()} files now")
+
+      val attemptCounter = new AtomicInteger(0)
+
+      cloudConnector
+        .download(remoteFileVersion, dest) { (downloadedBytes, speed, isFinal) =>
+          wsApiController
+            .send(
+              WsMessage(
+                `type` = "fileTransferUpdate",
+                data = FileProgressUpdate(dest.pathAsString,
+                                          `type` = "Downloading",
+                                          if (isFinal) "done" else "downloading",
+                                          Some(remoteFileVersion.size),
+                                          Some(downloadedBytes),
+                                          Some(speed)).asJson
+              )
+            )
+            .runAsync {
+              case Left(ex) => logger.debug("Could not send file download update", ex)
+            }
+        }
+        .doOnCancel(Task {
+          logger.debug(s"Task was cancelled: download of ${dest.pathAsString}")
+          downloadedFailedMeter.mark()
+          transferringCnt.decrementAndGet()
+        })
+        .restartIf(handleRetries(attemptCounter.incrementAndGet(), dest))
+        .withResult {
+          case Right(DownloadResponse.Downloaded(file, _)) =>
+            logger.debug(s"File ${file.pathAsString} downloaded")
+            downloadedMeter.mark()
+            transferringCnt.decrementAndGet()
+
+          case Right(DownloadResponse.FileVersionNotFound(_)) =>
+            logger.info(s"Version not found for file ${dest.pathAsString} on server")
+            downloadedFailedMeter.mark()
+            transferringCnt.decrementAndGet()
+
+          case Left(appException) =>
+            logger.info(s"Error while downloading file ${dest.pathAsString}", appException)
+            downloadedFailedMeter.mark()
+            transferringCnt.decrementAndGet()
+        }
+        .map(List(_)) // TODO this is hack ;-)
+    }
+  }
 
   def uploadNow(file: File)(implicit session: ServerSession): Result[List[UploadResponse]] = {
     if (file.isDirectory) {
       uploadDir(file)
     } else {
       withSemaphore {
-        logger.debug(s"Uploading ${uploadingCnt.incrementAndGet()} files now (max $uploadParallelism)")
+        logger.debug(s"Uploading ${transferringCnt.incrementAndGet()} files now")
 
         val attemptCounter = new AtomicInteger(0)
 
@@ -62,8 +106,9 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
             wsApiController
               .send(
                 WsMessage(
-                  `type` = "fileUploadUpdate",
+                  `type` = "fileTransferUpdate",
                   data = FileProgressUpdate(file.pathAsString,
+                                            `type` = "Uploading",
                                             if (isFinal) "done" else "uploading",
                                             Some(file.size),
                                             Some(uploadedBytes),
@@ -74,22 +119,27 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
                 case Left(ex) => logger.debug("Could not send file upload update", ex)
               }
           }
+          .doOnCancel(Task {
+            logger.debug(s"Task was cancelled: upload of ${file.pathAsString}")
+            uploadedFailedMeter.mark()
+            transferringCnt.decrementAndGet()
+          })
           .restartIf(handleRetries(attemptCounter.incrementAndGet(), file))
           .withResult {
             case Right(UploadResponse.Uploaded(_)) =>
               logger.debug(s"File ${file.pathAsString} uploaded")
               uploadedMeter.mark()
-              uploadingCnt.decrementAndGet()
+              transferringCnt.decrementAndGet()
 
             case Right(UploadResponse.Sha256Mismatch) =>
               logger.info(s"SHA256 mismatch while uploading file ${file.pathAsString}")
               uploadedFailedMeter.mark()
-              uploadingCnt.decrementAndGet()
+              transferringCnt.decrementAndGet()
 
             case Left(appException) =>
               logger.info(s"Error while uploading file ${file.pathAsString}", appException)
               uploadedFailedMeter.mark()
-              uploadingCnt.decrementAndGet()
+              transferringCnt.decrementAndGet()
           }
           .flatMap { r =>
             updateFilesRegistry(file, r)
@@ -103,7 +153,7 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
     EitherT {
       Observable
         .fromIterator(file.children)
-        .mapParallelUnordered(uploadParallelism)(uploadNow(_).value)
+        .mapParallelUnordered(maxParallelism)(uploadNow(_).value)
         .toListL
         .map(_.foldLeft[Either[AppException, List[UploadResponse]]](Right(List.empty)) { (prev, curr) =>
           for {
@@ -113,6 +163,7 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
             c ++ p
           }
         })
+        .cancelable
     }
 
   private def handleRetries(attemptNo: Int, file: File)(t: Throwable): Boolean = {
@@ -133,25 +184,29 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
   }
 
   private def withSemaphore[A](a: => Result[A]): Result[A] = EitherT {
-    (for {
-      _ <- uploadSemaphore.decrement
-      result <- a.value
-    } yield {
-      result
-    }).transformWith(
-      res => {
-        logger.trace(s"File upload result $res, unlocking")
-        uploadSemaphore.increment.map { _ =>
-          logger.debug(s"Currently uploading ${uploadingCnt.get()} files")
-          res
-        }
-      },
-      th => {
-        logger.trace(s"File upload failed, unlocking", th)
-        uploadSemaphore.increment
-          .map(_ => logger.debug(s"Currently uploading ${uploadingCnt.get()} files")) >> Task.raiseError(th)
-      }
-    )
+    semaphore.decrement.bracketE { _ =>
+      a.value
+    } {
+      case (_, Right(Right(res))) =>
+        logger.trace(s"File transfer result $res, unlocking")
+        semaphore.increment
+          .map(_ => logger.debug(s"Currently transferring ${transferringCnt.get()} files"))
+
+      case (_, Right(Left(ae))) =>
+        logger.trace(s"File transfer failed, unlocking", ae)
+        semaphore.increment
+          .map(_ => logger.debug(s"Currently transferring ${transferringCnt.get()} files"))
+
+      case (_, Left(Some(th))) =>
+        logger.trace(s"File transfer failed, unlocking", th)
+        semaphore.increment
+          .map(_ => logger.debug(s"Currently transferring ${transferringCnt.get()} files"))
+
+      case (_, Left(None)) =>
+        logger.trace(s"File transfer cancelled, unlocking")
+        semaphore.increment
+          .map(_ => logger.debug(s"Currently transferring ${transferringCnt.get()} files"))
+    }
   }
 
   override def close(): Unit = ()
@@ -168,7 +223,8 @@ private object FileHandlingResult {
 }
 
 private case class FileProgressUpdate(name: String,
+                                      `type`: String,
                                       status: String,
                                       totalSize: Option[Long] = None,
-                                      uploaded: Option[Long] = None,
+                                      transferred: Option[Long] = None,
                                       speed: Option[Double] = None)

@@ -44,6 +44,10 @@ object App {
       r.value.onErrorRestartIf(cond)
     }
 
+    def doOnCancel(callback: Task[Unit]): Result[A] = EitherT {
+      r.value.doOnCancel(callback)
+    }
+
     def unwrapResult: Task[A] = r.value.flatMap {
       case Right(value) => Task.now(value)
       case Left(t) => Task.raiseError(t)

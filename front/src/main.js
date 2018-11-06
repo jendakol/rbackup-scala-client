@@ -9,7 +9,8 @@ const options = {
         timeout: 3500,
         position: SnotifyPosition.rightTop,
         showProgressBar: false,
-        pauseOnHover: true
+        pauseOnHover: true,
+        closeOnClick: true
     }
 };
 
@@ -26,6 +27,6 @@ Vue.use(Vuetify, {
         "success": "#4CAF50",
         "warning": "#ff5722"
     }
-})
+});
 
 new Vue(App).$mount('#app');

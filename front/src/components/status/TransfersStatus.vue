@@ -2,12 +2,12 @@
     <v-container fluid>
         <v-layout row>
             <v-list two-line>
-                <v-list-tile v-for="uploading in uploadings" :key="uploading.name">
-                    <v-progress-circular :value="uploading.progress">{{ uploading.progress }}</v-progress-circular>
+                <v-list-tile v-for="transfer in transfers" :key="transfer.name">
+                    <v-progress-circular :value="transfer.progress">{{ transfer.progress }}</v-progress-circular>
                     &nbsp;
                     <v-list-tile-content>
-                        <v-list-tile-title v-html="uploading.name"></v-list-tile-title>
-                        <v-list-tile-sub-title v-html="uploading.status"></v-list-tile-sub-title>
+                        <v-list-tile-title v-html="transfer.name"></v-list-tile-title>
+                        <v-list-tile-sub-title v-html="transfer.status"></v-list-tile-sub-title>
                     </v-list-tile-content>
                 </v-list-tile>
             </v-list>
@@ -17,7 +17,7 @@
 
 <script>
     export default {
-        name: "UploadingsStatus",
+        name: "TransfersStatus",
         props: {
             ajax: Function,
             asyncActionWithNotification: Function,
@@ -25,7 +25,7 @@
         },
         data() {
             return {
-                uploadings: {}
+                transfers: {}
             }
         },
         created() {
@@ -34,39 +34,35 @@
         methods: {
             receiveWs(message) {
                 switch (message.type) {
-                    case "fileUploadUpdate": {
+                    case "fileTransferUpdate": {
                         this.updateProgress(message.data);
                     }
                         break;
                 }
             },
-            updateProgress(fileUploading) {
-                let newData = Object.assign({}, this.uploadings);
-                let key = this.strToHex(fileUploading.name);
+            updateProgress(fileTransfer) {
+                let newData = Object.assign({}, this.transfers);
+                let key = this.strToHex(fileTransfer.name);
 
-                if (fileUploading.status === "done") {
+                if (fileTransfer.status === "done") {
                     delete newData[key];
                 } else {
-                    let progress = Math.min(99, Math.floor(fileUploading.uploaded / fileUploading.total_size * 100)); // max. show 99%
+                    let progress = Math.min(99, Math.floor(fileTransfer.transferred / fileTransfer.total_size * 100)); // max. show 99%
 
-                    if (progress === 99) {
-                        var status = "Finishing..."
-                    } else {
-                        if (fileUploading.speed > 1500) {
-                            var status = "@ " + (Math.round(fileUploading.speed / 100) / 10) + " MBps"
-                        } else {
-                            var status = "@ " + fileUploading.speed + " kBps"
-                        }
-                    }
+                    let status = progress === 99
+                        ? "Finishing..."
+                        : (fileTransfer.speed > 1500
+                            ? fileTransfer.type + " @ " + (Math.round(fileTransfer.speed / 100) / 10) + " MBps"
+                            : fileTransfer.type + " @ " + fileTransfer.speed + " kBps");
 
                     newData[key] = {
-                        name: fileUploading.name,
+                        name: fileTransfer.name,
                         progress: progress,
                         status: status
                     };
                 }
 
-                this.uploadings = newData;
+                this.transfers = newData;
             },
             strToHex(str) {
                 var arr1 = [];

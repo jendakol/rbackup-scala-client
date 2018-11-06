@@ -1,5 +1,7 @@
 package lib
 
+import java.util.UUID
+
 import io.circe.Json
 import io.circe.generic.extras.auto._
 import lib.App._
@@ -18,8 +20,9 @@ object Command {
     case "register" => data.flatMap(_.as[RegisterCommand].toOption)
     case "login" => data.flatMap(_.as[LoginCommand].toOption)
     case "logout" => Some(LogoutCommand)
-    case "uploadManually" => data.flatMap(_.as[UploadManually].toOption)
-    case "download" => data.flatMap(_.as[Download].toOption)
+    case "upload" => data.flatMap(_.as[UploadCommand].toOption)
+    case "download" => data.flatMap(_.as[DownloadCommand].toOption)
+    case "cancelTask" => data.flatMap(_.as[CancelTaskCommand].toOption)
     case _ => None
   }
 }
@@ -40,9 +43,11 @@ case class LoginCommand(host: String, username: String, password: String) extend
 
 case object LogoutCommand extends Command
 
-case class UploadManually(path: String) extends Command
+case class UploadCommand(path: String) extends Command
 
-case class Download(path: String, versionId: Long) extends Command
+case class DownloadCommand(path: String, versionId: Long) extends Command
+
+case class CancelTaskCommand(id: UUID) extends Command
 
 object RegisterCommand {
   def toResponse(resp: RegistrationResponse): Json = {

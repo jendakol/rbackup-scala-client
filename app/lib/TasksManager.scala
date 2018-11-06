@@ -30,44 +30,48 @@ class TasksManager @Inject()(wsApiController: WsApiController)(implicit sch: Sch
       logger.debug(s"Starting task: $rt")
 
       Task {
-        val key = UUID.randomUUID()
+        val id = UUID.randomUUID()
 
         val future = exec.unwrapResult.cancelable
           .doOnFinish {
             case Some(t) =>
               Task {
-                tasks -= key
+                tasks -= id
                 logger.debug(s"Task $rt failed", t)
-              } >> notifyUi()
+              } >> notifyUi_()
 
             case None =>
               Task {
-                tasks -= key
+                tasks -= id
                 logger.debug(s"Task $rt was successful")
-              } >> notifyUi()
+              } >> notifyUi_()
           }
           .doOnCancel {
             Task {
-              tasks -= key
+              tasks -= id
               logger.debug(s"Task $rt was cancelled")
-            } >> notifyUi()
+            } >> notifyUi_()
           }
           .runAsync
 
-        tasks += key -> (future, rt)
+        tasks += id -> (future, rt)
 
         ()
-      } >> notifyUi()
+      } >> notifyUi_()
     } { _ =>
       semaphore.increment
     }
   }
 
-  def cancel(key: UUID): Result[Unit] = EitherT.right {
+  def cancel(id: UUID): Result[Option[RunningTask]] = EitherT {
     semaphore.decrement.bracket { _ =>
       Task {
-        tasks.get(key).foreach(_._1.cancel())
+        val task = tasks.get(id)
+
+        task.foreach(_._1.cancel())
         // the task is removed and UI notified in callbacks on the task itself
+
+        Right(task.map(_._2)): Either[AppException, Option[RunningTask]]
       }
     } { _ =>
       semaphore.increment
@@ -78,7 +82,7 @@ class TasksManager @Inject()(wsApiController: WsApiController)(implicit sch: Sch
     tasks.mapValues(_._2).toMap
   }
 
-  private def notifyUi(): Task[Unit] = {
+  private def notifyUi_(): Task[Unit] = {
     (for {
       runningTasks <- getAll.map(RunningTasks)
       _ = logger.debug(s"Sending running tasks: $runningTasks")
@@ -96,6 +100,10 @@ class TasksManager @Inject()(wsApiController: WsApiController)(implicit sch: Sch
         }
     }
   }
+
+  def notifyUi(): Result[Unit] = {
+    EitherT.right(notifyUi_())
+  }
 }
 
 sealed trait RunningTask {
@@ -105,7 +113,17 @@ sealed trait RunningTask {
 object RunningTask {
 
   case class FileUpload(fileName: String) extends RunningTask {
-    override def toJson: Json = parseSafe(s"""{ "name": "file-upload", "data": { "file_name": "$fileName"} }""")
+    override def toJson: Json =
+      parseSafe(s"""{ "name": "file-upload", "icon": "insert_drive_file", "data": { "file_name": "$fileName"} }""")
+  }
+
+  case class DirUpload(fileName: String) extends RunningTask {
+    override def toJson: Json = parseSafe(s"""{ "name": "dir-upload", "icon": "folder", "data": { "file_name": "$fileName"} }""")
+  }
+
+  case class FileDownload(fileName: String) extends RunningTask {
+    override def toJson: Json =
+      parseSafe(s"""{ "name": "file-download", "icon": "insert_drive_file", "data": { "file_name": "$fileName"} }""")
   }
 
 }

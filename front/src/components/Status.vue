@@ -17,10 +17,10 @@
                             <v-flex xs12>
                                 <v-card>
                                     <v-toolbar dense color="primary">
-                                        <v-toolbar-title class="white--text">Upload status</v-toolbar-title>
+                                        <v-toolbar-title class="white--text">Transfers status</v-toolbar-title>
                                     </v-toolbar>
-                                    <UploadingsStatus :ajax="this.ajax" :registerWsListener="this.registerWsListener"
-                                                      :asyncActionWithNotification="this.asyncActionWithNotification"/>
+                                    <TransfersStatus :ajax="this.ajax" :registerWsListener="this.registerWsListener"
+                                                     :asyncActionWithNotification="this.asyncActionWithNotification"/>
                                 </v-card>
                             </v-flex>
                             <v-flex xs12>
@@ -29,7 +29,7 @@
                                         <v-toolbar-title class="white--text">Running tasks</v-toolbar-title>
                                     </v-toolbar>
                                     <TasksStatus :ajax="this.ajax" :registerWsListener="this.registerWsListener"
-                                                      :asyncActionWithNotification="this.asyncActionWithNotification"/>
+                                                 :asyncActionWithNotification="this.asyncActionWithNotification"/>
                                 </v-card>
                             </v-flex>
                         </v-layout>
@@ -42,7 +42,7 @@
 
 <script>
     import ConnectionStatus from '../components/status/ConnectionStatus.vue';
-    import UploadingsStatus from '../components/status/UploadingsStatus.vue';
+    import TransfersStatus from './status/TransfersStatus.vue';
     import TasksStatus from '../components/status/TasksStatus.vue';
 
     export default {
@@ -54,7 +54,7 @@
         },
         components: {
             ConnectionStatus,
-            UploadingsStatus,
+            TransfersStatus,
             TasksStatus,
         },
         data() {

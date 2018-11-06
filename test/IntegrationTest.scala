@@ -86,7 +86,7 @@ class IntegrationTest extends FunSuite {
     // download the first version
 
     val dest = File.newTemporaryFile(prefix = "rbackup-test_")
-    val DownloadResponse.Downloaded(finalDestFile, remVer) = connector.download(version1, dest).unwrappedFutureValue
+    val DownloadResponse.Downloaded(finalDestFile, remVer) = connector.download(version1, dest)((_, _, _) => ()).unwrappedFutureValue
 
     assertResult(dest)(finalDestFile)
     assertResult(version1)(remVer)

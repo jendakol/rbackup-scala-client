@@ -70,33 +70,15 @@
                 }
             }
         }, methods: {
-            saveBackupSelection(){
+            saveBackupSelection() {
                 alert()
             },
             uploadManually() {
                 let path = this.rightClicked.value;
 
-                this.asyncActionWithNotification("uploadManually", {path: path}, "Manually uploading " + path, (resp) => new Promise((success, error) => {
-                    if (resp.success) {
-                        success("Manual upload of " + path + " successful!")
-                    } else {
-                        error("Upload of " + path + " was NOT successful, because " + resp.reason)
-                    }
-                }));
+                this.ajax("upload", {path: path});
             },
             receiveWs(message) {
-                // switch (message.type) {
-                //     case "fileUploaded": {
-                //         let data = message.data;
-                //         let node = this.selectTreeNode(data.path);
-                //
-                //         if (node != undefined) {
-                //             node.children = data.versions;
-                //             node.isLeaf = false;
-                //         }
-                //     }
-                //         break;
-                // }
             },
             selectTreeNode(path) {
                 return JSPath.apply("..{.value === '" + path + "'}", this.fileTreeData)[0]
