@@ -22,7 +22,7 @@ scalaVersion := "2.12.7"
 
 lazy val `rbackup-client` = (project in file(".")).enablePlugins(PlayScala)
 
-libraryDependencies ++= Seq(guice, filters, jdbc, cacheApi, ws, specs2 % Test)
+libraryDependencies ++= Seq(guice, filters, jdbc, cacheApi, ws)
 
 libraryDependencies ++= Seq(
   "org.http4s" %% "http4s-dsl" % Versions.http4s,
