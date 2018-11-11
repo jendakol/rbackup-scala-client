@@ -20,6 +20,23 @@ object DbScheme {
          |    key varchar(200) not null,
          |    value varchar(65536) not null
          |);
+         |
+         |create table if not exists backup_sets
+         |(
+         |    id int primary key auto_increment not null,
+         |    name varchar(200) not null,
+         |    frequency int not null default 360,
+         |    last_execution DATETIME
+         |);
+         |
+         |create table if not exists backup_sets_files
+         |(
+         |    path VARCHAR(65536) NOT NULL,
+         |    set_id int not null,
+         |    foreign key (set_id) references backup_sets(id) on delete cascade on update cascade,
+         |    primary key (path, set_id)
+         |);
+         |
        """.stripMargin.executeUpdate().apply()
   }
 }

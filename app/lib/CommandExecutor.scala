@@ -92,57 +92,10 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       }
 
     case BackedUpFileListCommand =>
-      dao.listAllFiles.map { files =>
-        val fileTrees = FileTree.fromRemoteFiles(files.map(_.remoteFile))
-
-        logger.debug(s"Backed-up file trees: $fileTrees")
-
-        val nonEmptyTrees = fileTrees.filterNot(_.isEmpty)
-
-        if (nonEmptyTrees.nonEmpty) {
-          logger.trace {
-            val allFiles = nonEmptyTrees
-              .collect {
-                case ft @ FileTree(_, Some(_)) => ft.allFiles
-                case _ => None
-              }
-              .flatten
-              .flatMap(_.toList)
-
-            s"Returning list of ${allFiles.length} backed-up files"
-          }
-
-          nonEmptyTrees.map(_.toJson).asJson
-        } else {
-          logger.debug("Returning empty list of backed-up files")
-          parseUnsafe {
-            s"""[{"icon": "fas fa-info-circle", "isLeaf": true, "opened": false, "value": "_", "text": "No backed-up files yet", "isFile": false, "isVersion": false, "isDir": false}]"""
-          }
-        }
-      }
+      backedUpList
 
     case DirListCommand(path) =>
-      val nodes = if (path != "") {
-        File(path).children
-          .filter(_.isReadable)
-          .map { file =>
-            if (file.isRegularFile) {
-              FileTreeNode.RegularFile(file, None)
-            } else {
-              FileTreeNode.Directory(file)
-            }
-          }
-          .toSeq
-      } else {
-        File.roots
-          .filter(_.isReadable)
-          .map(FileTreeNode.Directory(_))
-          .toSeq
-      }
-
-      pureResult {
-        nodes.map(_.toJson).asJson
-      }
+      dirList(path)
 
     //    case SaveFileTreeCommand(files) =>
     ////            logger.debug(better.files.head.flatten.mkString("", "\n", ""))
@@ -151,6 +104,61 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
     //        Json.Null
     //      }
 
+  }
+
+  private def dirList(path: String): Result[Json] = {
+    val nodes = if (path != "") {
+      File(path).children
+        .filter(_.isReadable)
+        .map { file =>
+          if (file.isRegularFile) {
+            FileTreeNode.RegularFile(file, None)
+          } else {
+            FileTreeNode.Directory(file)
+          }
+        }
+        .toSeq
+    } else {
+      File.roots
+        .filter(_.isReadable)
+        .map(FileTreeNode.Directory(_))
+        .toSeq
+    }
+
+    pureResult {
+      nodes.map(_.toJson).asJson
+    }
+  }
+
+  private def backedUpList: EitherT[Task, AppException, Json] = {
+    dao.listAllFiles.map { files =>
+      val fileTrees = FileTree.fromRemoteFiles(files.map(_.remoteFile))
+
+      logger.debug(s"Backed-up file trees: $fileTrees")
+
+      val nonEmptyTrees = fileTrees.filterNot(_.isEmpty)
+
+      if (nonEmptyTrees.nonEmpty) {
+        logger.trace {
+          val allFiles = nonEmptyTrees
+            .collect {
+              case ft @ FileTree(_, Some(_)) => ft.allFiles
+              case _ => None
+            }
+            .flatten
+            .flatMap(_.toList)
+
+          s"Returning list of ${allFiles.length} backed-up files"
+        }
+
+        nonEmptyTrees.map(_.toJson).asJson
+      } else {
+        logger.debug("Returning empty list of backed-up files")
+        parseUnsafe {
+          s"""[{"icon": "fas fa-info-circle", "isLeaf": true, "opened": false, "value": "_", "text": "No backed-up files yet", "isFile": false, "isVersion": false, "isDir": false}]"""
+        }
+      }
+    }
   }
 
   private def login(host: String, username: String, password: String): Result[Json] = {

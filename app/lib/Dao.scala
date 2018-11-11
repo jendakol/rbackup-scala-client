@@ -1,6 +1,6 @@
 package lib
 
-import java.time.ZonedDateTime
+import java.time.{Duration, ZonedDateTime}
 import java.util.concurrent.ExecutorService
 
 import better.files.File
@@ -25,7 +25,7 @@ import scala.util.control.NonFatal
 class Dao(executor: ExecutorService) extends StrictLogging {
   private val sch: SchedulerService = Scheduler(executor: ExecutorService)
 
-  def getFile(file: File): Result[Option[DbFile]] = data.EitherT {
+  def getFile(file: File): Result[Option[DbFile]] = EitherT {
     Task {
       val path = file.pathAsString
 
@@ -35,7 +35,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
         DB.readOnly { implicit session =>
           sql"SELECT * FROM files WHERE path = ${path}".single().map(DbFile.apply).single().apply()
         }
-      }
+      }: Either[AppException, Option[DbFile]]
     }.executeOn(sch)
       .asyncBoundary
       .onErrorRecover {
@@ -51,7 +51,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
         DB.readOnly { implicit session =>
           sql"SELECT * FROM files".map(DbFile.apply).list().apply()
         }
-      }
+      }: Either[AppException, List[DbFile]]
     }.executeOn(sch)
       .asyncBoundary
       .onErrorRecover {
@@ -77,7 +77,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
 
       logger.debug(s"$discoveredFile saved")
 
-      Right(())
+      Right(()): Either[AppException, Unit]
     }.executeOn(sch)
       .asyncBoundary
       .onErrorRecover {
@@ -109,7 +109,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
 
       logger.debug(s"$remoteFile saved")
 
-      Right(())
+      Right(()): Either[AppException, Unit]
     }.executeOn(sch)
       .asyncBoundary
       .onErrorRecover {
@@ -132,7 +132,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
           .apply()
       }
 
-      Right(())
+      Right(()): Either[AppException, Unit]
     }.executeOn(sch)
       .asyncBoundary
       .onErrorRecover {
@@ -148,7 +148,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
         sql"DELETE FROM files WHERE id = ${fileId}".executeUpdate().apply()
       }
 
-      Right(())
+      Right(()): Either[AppException, Unit]
     }.executeOn(sch)
       .asyncBoundary
       .onErrorRecover {
@@ -164,7 +164,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
         sql"DELETE FROM files".executeUpdate().apply()
       }
 
-      Right(())
+      Right(()): Either[AppException, Unit]
     }.executeOn(sch)
       .asyncBoundary
       .onErrorRecover {
@@ -180,7 +180,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
         DB.readOnly { implicit session =>
           sql"SELECT value FROM settings WHERE key = ${key}".single().map(_.string("value")).single().apply()
         }
-      }
+      }: Either[AppException, Option[String]]
     }.executeOn(sch)
       .asyncBoundary
       .onErrorRecover {
@@ -196,7 +196,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
         sql"merge into settings key(key) values (${key}, ${value})".executeUpdate().apply()
       }
 
-      Right(())
+      Right(()): Either[AppException, Unit]
     }.executeOn(sch)
       .asyncBoundary
       .onErrorRecover {
@@ -212,11 +212,103 @@ class Dao(executor: ExecutorService) extends StrictLogging {
         sql"delete from settings where key = ${key}".executeUpdate().apply()
       }
 
-      Right(())
+      Right(()): Either[AppException, Unit]
     }.executeOn(sch)
       .asyncBoundary
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Deleting setting", e))
+      }
+  }
+
+  def createBackupSet(name: String): Result[BackupSet] = EitherT {
+    Task {
+
+      logger.debug(s"Saving new backup set '$name' to DB")
+
+      val id = DB.autoCommit { implicit session =>
+        sql"""INSERT INTO backup_sets (name) VALUES (${name})""".updateAndReturnGeneratedKey().apply()
+      }
+
+      val bs = BackupSet(id, name, Duration.ofHours(6), None)
+
+      logger.debug(s"$bs saved")
+
+      Right(bs): Either[AppException, BackupSet]
+    }.executeOn(sch)
+      .asyncBoundary
+      .onErrorRecover {
+        case NonFatal(e) => Left(DbException("Creating backup set", e))
+      }
+  }
+
+  def listAllBackupSets(): Result[List[BackupSet]] = EitherT {
+    Task {
+      logger.debug(s"Listing all backup sets from DB")
+
+      val bss = DB.readOnly { implicit session =>
+        sql"""select * from backup_sets""".map(BackupSet.apply).list().apply()
+      }
+
+      logger.debug(s"Retrieved backup sets: $bss")
+
+      Right(bss): Either[AppException, List[BackupSet]]
+    }.executeOn(sch)
+      .asyncBoundary
+      .onErrorRecover {
+        case NonFatal(e) => Left(DbException("Listing backup sets", e))
+      }
+  }
+
+  def updateFilesInBackupSet(setId: Long, files: List[File]): Result[Unit] = EitherT {
+    Task {
+      logger.debug(s"Updating backed up set files in DB")
+
+      DB.autoCommit { implicit session =>
+        sql"""merge into backup_sets_files (path, set_id) values (?, ?)"""
+          .map { rs =>
+            File(rs.string("path"))
+          }
+          .batch(files.map { file =>
+            Seq(file.pathAsString, setId)
+          }: _*)
+          .apply()
+      }
+
+      DB.autoCommit { implicit session =>
+        val currentPaths = files.map(_.pathAsString)
+        logger.debug(s"Current paths: $currentPaths")
+
+        sql"""delete from backup_sets_files where set_id = ${setId} and path not in (${currentPaths})""".update().apply()
+      }
+
+      Right(()): Either[AppException, Unit]
+    }.executeOn(sch)
+      .asyncBoundary
+      .onErrorRecover {
+        case NonFatal(e) => Left(DbException("Updating backup set files", e))
+      }
+  }
+
+  def listFilesInBackupSet(id: Long): Result[List[File]] = EitherT {
+    Task {
+      logger.debug(s"Listing files from backup set from DB")
+
+      val files = DB.readOnly { implicit session =>
+        sql"""select * from backup_sets_files where set_id=${id}"""
+          .map { rs =>
+            File(rs.string("path"))
+          }
+          .list()
+          .apply()
+      }
+
+      logger.debug(s"Retrieved backup set files: $files")
+
+      Right(files): Either[AppException, List[File]]
+    }.executeOn(sch)
+      .asyncBoundary
+      .onErrorRecover {
+        case NonFatal(e) => Left(DbException("Listing backup set files", e))
       }
   }
 }
@@ -237,6 +329,21 @@ object DbFile {
           println(string("remote_file"))
           throw new IllegalArgumentException("DB contains unparseable RemoteFile", err)
       }
+    )
+  }
+}
+
+case class BackupSet(id: Long, name: String, frequency: Duration, lastExecution: Option[ZonedDateTime])
+
+object BackupSet {
+  def apply(rs: WrappedResultSet): BackupSet = {
+    import rs._
+
+    BackupSet(
+      id = long("id"),
+      name = string("name"),
+      frequency = Duration.ofMinutes(int("frequency")),
+      lastExecution = dateTimeOpt("last_execution")
     )
   }
 }
