@@ -47,6 +47,6 @@ class CloudFilesRegistry @Inject()(wsApiController: WsApiController, dao: Dao) {
 
 private case class FileUploadedUpdate(path: String, versions: Seq[Version]) {
   def asJson: Json = {
-    parseSafe(s"""{"path": "$path", "versions": ${versions.map(_.toJson).mkString("[", ", ", "]")}}""")
+    parseUnsafe(s"""{"path": "$path", "versions": ${versions.map(_.toJson).mkString("[", ", ", "]")}}""")
   }
 }

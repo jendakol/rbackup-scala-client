@@ -12,7 +12,7 @@ import io.circe.generic.extras.auto._
 import io.circe.syntax._
 import javax.inject.{Inject, Singleton}
 import lib.App._
-import lib.CirceImplicits._
+import lib.App.StringOps
 import monix.eval.Task
 import monix.execution.{CancelableFuture, Scheduler}
 
@@ -114,16 +114,17 @@ object RunningTask {
 
   case class FileUpload(fileName: String) extends RunningTask {
     override def toJson: Json =
-      parseSafe(s"""{ "name": "file-upload", "icon": "insert_drive_file", "data": { "file_name": "$fileName"} }""")
+      parseUnsafe(s"""{ "name": "file-upload", "icon": "insert_drive_file", "data": { "file_name": "${fileName.fixPath}"} }""")
   }
 
   case class DirUpload(fileName: String) extends RunningTask {
-    override def toJson: Json = parseSafe(s"""{ "name": "dir-upload", "icon": "folder", "data": { "file_name": "$fileName"} }""")
+    override def toJson: Json =
+      parseUnsafe(s"""{ "name": "dir-upload", "icon": "folder", "data": { "file_name": "${fileName.fixPath}"} }""")
   }
 
   case class FileDownload(fileName: String) extends RunningTask {
     override def toJson: Json =
-      parseSafe(s"""{ "name": "file-download", "icon": "insert_drive_file", "data": { "file_name": "$fileName"} }""")
+      parseUnsafe(s"""{ "name": "file-download", "icon": "insert_drive_file", "data": { "file_name": "${fileName.fixPath}"} }""")
   }
 
 }

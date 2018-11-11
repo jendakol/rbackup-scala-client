@@ -21,7 +21,7 @@ object App {
     EitherT[Task, AppException, A](Task.now(Left(e)))
   }
 
-  def parseSafe(str: String): Json = io.circe.parser.parse(str).getOrElse(throw new RuntimeException(s"BUG :-( - could not parse\n$str"))
+  def parseUnsafe(str: String): Json = io.circe.parser.parse(str).getOrElse(throw new RuntimeException(s"BUG :-( - could not parse\n$str"))
 
   final val DateTimeFormatter = java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm:ss")
 
@@ -87,6 +87,10 @@ object App {
             }
         }
     }
+  }
+
+  implicit class StringOps(val s: String) extends AnyVal {
+    def fixPath: String = s.replace('\\', '/')replace('\\', '/')
   }
 
 }

@@ -9,8 +9,8 @@ import com.typesafe.scalalogging.StrictLogging
 import io.circe.Json
 import io.circe.generic.extras.auto._
 import io.circe.syntax._
-import lib.App.parseSafe
-import lib.CirceImplicits._
+import lib.App._
+import lib.App.StringOps
 import lib.clientapi.FileTreeNode.{Directory, RegularFile}
 import lib.serverapi.RemoteFile
 import org.http4s.Uri
@@ -32,7 +32,7 @@ object clientapi extends StrictLogging {
 
     case class Ready(rootUri: Uri) extends ClientStatus {
       val name: String = "READY"
-      val data: Json = parseSafe(s"""{ "host": "$rootUri"}""")
+      val data: Json = parseUnsafe(s"""{ "host": "$rootUri"}""")
     }
 
     case object Disconnected extends ClientStatus {
@@ -54,7 +54,7 @@ object clientapi extends StrictLogging {
 
     private val displayName = if (name != "") name else "/"
 
-    lazy val toJson: Json = parseSafe {
+    lazy val toJson: Json = parseUnsafe {
       s"""{"icon": "$icon", "isLeaf": false, "opened": false, "value": "$name/", "text": "$displayName", "isFile": false, "isVersion": false, "isDir": true$childrenJson}"""
     }
 
@@ -178,18 +178,18 @@ object clientapi extends StrictLogging {
     }
 
     private def process(file: RemoteFile): FileTree = {
-      val parts = file.originalName.split("/")
+      val fixedName = file.originalName.fixPath
+      val parts = fixedName.split("/")
 
       val currentPath = parts.head
-      val originalPath = file.originalName
-      val versions = Option(file.versions.map(Version(file.originalName, _))).filter(_.nonEmpty)
+      val versions = Option(file.versions.map(Version(fixedName, _))).filter(_.nonEmpty)
 
       logger.trace(s"Processing $file")
 
       FileTree(
-        name = extractTreeName(file.originalName),
+        name = extractTreeName(fixedName),
         children =
-          process(parts.tail, currentPath + "/" + parts.tail.headOption.getOrElse("/"), originalPath, versions).map(NonEmptyList.of(_))
+          process(parts.tail, currentPath + "/" + parts.tail.headOption.getOrElse("/"), fixedName, versions).map(NonEmptyList.of(_))
       )
     }
 
@@ -215,8 +215,8 @@ object clientapi extends StrictLogging {
 
     private val icon: String = "fas fa-clock"
 
-    val toJson: Json = parseSafe {
-      s"""{"icon": "$icon", "isLeaf": true, "value": "$value", "text": "$text", "path": "$path", "versionId": $versionId, "isFile": false, "isVersion": true, "isDir": false}"""
+    val toJson: Json = parseUnsafe {
+      s"""{"icon": "$icon", "isLeaf": true, "value": "$value", "text": "$text", "path": ${path.asJson}, "versionId": $versionId, "isFile": false, "isVersion": true, "isDir": false}"""
     }
   }
 
@@ -244,17 +244,18 @@ object clientapi extends StrictLogging {
 
       private val childrenJson = children.map(_.map(_.toJson).toList.mkString("[", ",", "]")).map(",\"children\":" + _).getOrElse("")
 
-      lazy val toJson: Json = parseSafe {
-        s"""{"icon": "$icon", "isLeaf": false, "opened": false, "value": "${path.replace('\\', '/')}", "text": "$name", "isFile": false, "isVersion": false, "isDir": true$childrenJson}"""
+      lazy val toJson: Json = parseUnsafe {
+        s"""{"icon": "$icon", "isLeaf": false, "opened": false, "value": ${path.asJson}, "text": "$name", "isFile": false, "isVersion": false, "isDir": true$childrenJson}"""
       }
     }
 
     object Directory {
       def apply(file: File): Directory = {
-        val n = file.name
+        val absolutePath = file.path.toAbsolutePath.toString
+        val n = absolutePath.fixPath.split("/").last
 
         new Directory(
-          file.path.toAbsolutePath.toString,
+          absolutePath,
           if (n != "") n else "/",
           None
         )
@@ -268,8 +269,8 @@ object clientapi extends StrictLogging {
 
       private val versionsJson = versions.map(_.map(_.toJson).mkString("[", ", ", "]")).map(""", "children": """ + _).getOrElse("")
 
-      val toJson: Json = parseSafe {
-        s"""{"icon": "$icon", "isLeaf": $isLeaf, "opened": false, "value": "${path.replace('\\', '/')}", "text": "$name" $versionsJson, "isFile": true, "isVersion": false, "isDir": false}"""
+      val toJson: Json = parseUnsafe {
+        s"""{"icon": "$icon", "isLeaf": $isLeaf, "opened": false, "value": ${path.asJson}, "text": "$name" $versionsJson, "isFile": true, "isVersion": false, "isDir": false}"""
       }
     }
 

@@ -57,15 +57,13 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
       }
   }
 
-  private val out: AtomicReference[Option[ActorRef]] = new AtomicReference[Option[ActorRef]](None)
-
   def send(wsMessage: WsMessage): lib.App.Result[Unit] = {
     EitherT {
       Task {
         out.get() match {
           case Some(o) =>
             Try {
-              logger.debug(s"Sending WS message: $wsMessage")
+              logger.debug(s"Sending WS message through $o: $wsMessage")
 
               o ! wsMessage.asJson.pretty(jsonPrinter)
             }.toEither
@@ -89,7 +87,8 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
         logger.debug(s"Received WS message: $content")
         // TODO
 
-        WsApiController.this.out.set(Option(out))
+        logger.info(s"Updating WS channel to $out")
+        WsApiController.out.set(Option(out))
 
         eventsCallback.foreach { callback =>
           EitherT(
@@ -117,7 +116,10 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
 }
 
 object WsApiController {
-  val jsonPrinter: Printer = Printer.noSpaces.copy(dropNullValues = true)
+  private val jsonPrinter: Printer = Printer.noSpaces.copy(dropNullValues = true)
+
+  // shared across all potential instances (which should not happen)
+  private val out: AtomicReference[Option[ActorRef]] = new AtomicReference[Option[ActorRef]](None)
 }
 
 case class WsMessage(`type`: String, data: Json)

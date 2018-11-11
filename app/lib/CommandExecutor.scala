@@ -4,7 +4,7 @@ import better.files.File
 import cats.data.EitherT
 import cats.syntax.all._
 import com.typesafe.scalalogging.StrictLogging
-import controllers.{Event, InitEvent, WsApiController}
+import controllers._
 import io.circe.Json
 import io.circe.generic.extras.auto._
 import io.circe.parser._
@@ -12,9 +12,8 @@ import io.circe.syntax._
 import javax.inject.{Inject, Singleton}
 import lib.App._
 import lib.AppException.LoginRequired
-import lib.CirceImplicits._
 import lib.clientapi.{FileTree, FileTreeNode}
-import lib.serverapi.{DownloadResponse, LoginResponse, RemoteFileVersion, UploadResponse}
+import lib.serverapi._
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.http4s.Uri
@@ -50,7 +49,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
 
     case StatusCommand =>
       stateManager.status.map { status =>
-        parseSafe(s"""{ "success": true, "status": "${status.name}", "data": ${status.data}}""")
+        parseUnsafe(s"""{ "success": true, "status": "${status.name}", "data": ${status.data}}""")
       }
 
     case RegisterCommand(host, username, password) =>
@@ -68,12 +67,12 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       login(host, username, password)
 
     case LogoutCommand =>
-      settings.session(None).map(_ => parseSafe("""{ "success": true }"""))
+      settings.session(None).map(_ => parseUnsafe("""{ "success": true }"""))
 
     case CancelTaskCommand(id) =>
       tasksManager.cancel(id).map {
-        case Some(rt) => parseSafe(s"""{ "success": true, "task": ${rt.toJson} }""")
-        case None => parseSafe("""{ "success": false, "reason": "Task not found" }""")
+        case Some(rt) => parseUnsafe(s"""{ "success": true, "task": ${rt.toJson} }""")
+        case None => parseUnsafe("""{ "success": false, "reason": "Task not found" }""")
       }
 
     case UploadCommand(path) =>
@@ -116,7 +115,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
           nonEmptyTrees.map(_.toJson).asJson
         } else {
           logger.debug("Returning empty list of backed-up files")
-          parseSafe {
+          parseUnsafe {
             s"""[{"icon": "fas fa-info-circle", "isLeaf": true, "opened": false, "value": "_", "text": "No backed-up files yet", "isFile": false, "isVersion": false, "isDir": false}]"""
           }
         }
@@ -163,12 +162,12 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
         cloudConnector.login(uri, deviceId, username, password).flatMap {
           case LoginResponse.SessionCreated(sessionId) =>
             logger.info("Session on backend created")
-            stateManager.login(sessionId).map(_ => parseSafe("""{ "success": true }"""))
+            stateManager.login(sessionId).map(_ => parseUnsafe("""{ "success": true }"""))
           case LoginResponse.SessionRecovered(sessionId) =>
             logger.info("Session on backend restored")
-            stateManager.login(sessionId).map(_ => parseSafe("""{ "success": true }"""))
+            stateManager.login(sessionId).map(_ => parseUnsafe("""{ "success": true }"""))
           case LoginResponse.Failed =>
-            pureResult(parseSafe("""{ "success": false }"""))
+            pureResult(parseUnsafe("""{ "success": false }"""))
         }
       }
   }
@@ -185,9 +184,9 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
     def reportResult(results: List[UploadResponse]): Result[Unit] = {
       val respJson = if (results.size == 1) {
         results.head match {
-          case UploadResponse.Uploaded(_) => parseSafe(s"""{ "success": true, "path": "${file.pathAsString}" }""")
+          case UploadResponse.Uploaded(_) => parseUnsafe(s"""{ "success": true, "path": ${file.pathAsString.asJson} }""")
           case UploadResponse.Sha256Mismatch =>
-            parseSafe(s"""{ "success": false,, "path": "${file.pathAsString}" "reason": "SHA-256 mismatch" }""")
+            parseUnsafe(s"""{ "success": false,, "path": ${file.pathAsString.asJson} "reason": "SHA-256 mismatch" }""")
         }
       } else {
         val failures = results.collect {
@@ -195,9 +194,9 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
         }
 
         if (failures.nonEmpty) {
-          parseSafe(s"""{ "success": false, "path": "${file.pathAsString}", "reason": "${failures.mkString("[", ", ", "]")}" }""")
+          parseUnsafe(s"""{ "success": false, "path": ${file.pathAsString.asJson}, "reason": "${failures.mkString("[", ", ", "]")}" }""")
         } else {
-          parseSafe(s"""{ "success": true, "path": "${file.pathAsString}"}""")
+          parseUnsafe(s"""{ "success": true, "path": ${file.pathAsString.asJson}}""")
         }
       }
 
@@ -219,16 +218,16 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
     tasksManager
       .start(runningTask, uploadTask)
       .map { _ =>
-        parseSafe("""{ "success": true }""")
+        parseUnsafe("""{ "success": true }""")
       }
   }
 
   /*
    * .recover {
               case AppException.AccessDenied(_, _) =>
-                parseSafe(s"""{ "success": false, "path": "${file.pathAsString}", "reason": "Access denied" }""")
+                parseSafe(s"""{ "success": false, "path": ${file.pathAsString.asJson}, "reason": "Access denied" }""")
               case AppException.ServerNotResponding(_) =>
-                parseSafe(s"""{ "success": false, "path": "${file.pathAsString}", "reason": "Server does not respond" }""")
+                parseSafe(s"""{ "success": false, "path": ${file.pathAsString.asJson}, "reason": "Server does not respond" }""")
             }
    * */
 
@@ -237,10 +236,10 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       val respJson = if (results.size == 1) {
         results.head match {
           case DownloadResponse.Downloaded(_, _) =>
-            parseSafe(
-              s"""{ "success": true, "path": "${file.pathAsString}", "time": "${DateTimeFormatter.format(fileVersion.created)}" }""")
+            parseUnsafe(
+              s"""{ "success": true, "path": ${file.pathAsString.asJson}, "time": "${DateTimeFormatter.format(fileVersion.created)}" }""")
           case DownloadResponse.FileVersionNotFound(_) =>
-            parseSafe(s"""{ "success": false,, "path": "${file.pathAsString}" "reason": "Version not found" }""")
+            parseUnsafe(s"""{ "success": false,, "path": ${file.pathAsString.asJson} "reason": "Version not found" }""")
         }
       } else {
         val failures = results.collect {
@@ -248,9 +247,9 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
         }
 
         if (failures.nonEmpty) {
-          parseSafe(s"""{ "success": false, "path": "${file.pathAsString}", "reason": "${failures.mkString("[", ", ", "]")}" }""")
+          parseUnsafe(s"""{ "success": false, "path": ${file.pathAsString.asJson}, "reason": "${failures.mkString("[", ", ", "]")}" }""")
         } else {
-          parseSafe(s"""{ "success": true, "path": "${file.pathAsString}"}""")
+          parseUnsafe(s"""{ "success": true, "path": ${file.pathAsString.asJson}}""")
         }
       }
 
@@ -271,8 +270,14 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
             .flatMap(reportResult(fileVersion))
 
         case None =>
-          wsApiController.send("finishDownload", parseSafe {
-            s"""{ "success": false, "path": "${file.pathAsString}", "reason": "Version not found" }"""
+          wsApiController.send("finishDownload", parseUnsafe {
+            s"""{ "success": false, "path": ${file.pathAsString.asJson}, "reason": "Version not found" }"""
+          })
+      }
+      .recoverWith {
+        case AppException.AccessDenied(_, _) =>
+          wsApiController.send("finishDownload", parseUnsafe {
+            s"""{ "success": false, "path": ${file.pathAsString.asJson}, "reason": "Access to the file was denied" }"""
           })
       }
 
@@ -281,7 +286,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
     tasksManager
       .start(runningTask, downloadTask)
       .map { _ =>
-        parseSafe("""{ "success": true }""")
+        parseUnsafe("""{ "success": true }""")
       }
   }
 

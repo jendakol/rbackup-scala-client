@@ -53,9 +53,9 @@ object RegisterCommand {
   def toResponse(resp: RegistrationResponse): Json = {
     resp match {
       case RegistrationResponse.Created(accountId) =>
-        parseSafe(s"""{ "success": true, "account_id": "$accountId"}""")
+        parseUnsafe(s"""{ "success": true, "account_id": "$accountId"}""")
       case RegistrationResponse.AlreadyExists =>
-        parseSafe(s"""{ "success": false, "reason": "Account already exists."}""")
+        parseUnsafe(s"""{ "success": false, "reason": "Account already exists."}""")
     }
   }
 }
@@ -63,9 +63,9 @@ object RegisterCommand {
 object LoginCommand {
   def toResponse(resp: LoginResponse): Json = {
     resp match {
-      case LoginResponse.SessionCreated(_) => parseSafe("""{ "success": true }""")
-      case LoginResponse.SessionRecovered(_) => parseSafe("""{ "success": true }""")
-      case LoginResponse.Failed => parseSafe("""{ "success": false }""")
+      case LoginResponse.SessionCreated(_) => parseUnsafe("""{ "success": true }""")
+      case LoginResponse.SessionRecovered(_) => parseUnsafe("""{ "success": true }""")
+      case LoginResponse.Failed => parseUnsafe("""{ "success": false }""")
     }
   }
 }

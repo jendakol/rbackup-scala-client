@@ -188,25 +188,26 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
 
     for {
       fis <- EitherT.rightT[Task, AppException](file.newInputStream)
-      (cis, canc) = wrapWithStats(fis, callback(_, _, false))
+      (cis, fileStatsReporting) = wrapWithStats(fis, callback(_, _, false))
       inputStream = new InputStreamWithSha256(cis)
       request <- createRequest(rootUri, inputStream)
       result <- exec(request)(pf)
         .map { res => // cancel stats reporting and close the IS
           logger.debug(s"End stats sending for ${file.pathAsString}, file was uploaded")
-          canc.cancel()
+          fileStatsReporting.cancel()
           inputStream.close()
           res
         }
         .doOnCancel(Task {
           logger.debug(s"End stats sending for ${file.pathAsString}, file upload was cancelled")
           callback(file.size, 0, true) // send final/last stats
-          canc.cancel()
+          fileStatsReporting.cancel()
           inputStream.close()
         })
     } yield {
       val (_, speed) = cis.snapshot
       logger.debug(s"File ${file.pathAsString} uploaded, sent finalizing stats to UI")
+      fileStatsReporting.cancel()
       callback(file.size, speed, true) // send final/last stats
 
       result
