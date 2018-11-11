@@ -245,7 +245,7 @@ object clientapi extends StrictLogging {
       private val childrenJson = children.map(_.map(_.toJson).toList.mkString("[", ",", "]")).map(",\"children\":" + _).getOrElse("")
 
       lazy val toJson: Json = parseSafe {
-        s"""{"icon": "$icon", "isLeaf": false, "opened": false, "value": "$path", "text": "$name", "isFile": false, "isVersion": false, "isDir": true$childrenJson}"""
+        s"""{"icon": "$icon", "isLeaf": false, "opened": false, "value": "${path.replace('\\', '/')}", "text": "$name", "isFile": false, "isVersion": false, "isDir": true$childrenJson}"""
       }
     }
 
@@ -269,7 +269,7 @@ object clientapi extends StrictLogging {
       private val versionsJson = versions.map(_.map(_.toJson).mkString("[", ", ", "]")).map(""", "children": """ + _).getOrElse("")
 
       val toJson: Json = parseSafe {
-        s"""{"icon": "$icon", "isLeaf": $isLeaf, "opened": false, "value": "$path", "text": "$name" $versionsJson, "isFile": true, "isVersion": false, "isDir": false}"""
+        s"""{"icon": "$icon", "isLeaf": $isLeaf, "opened": false, "value": "${path.replace('\\', '/')}", "text": "$name" $versionsJson, "isFile": true, "isVersion": false, "isDir": false}"""
       }
     }
 
