@@ -39,4 +39,17 @@ object DbScheme {
          |
        """.stripMargin.executeUpdate().apply()
   }
+
+  def truncateAll(implicit session: DBSession): Unit = {
+    sql"""
+         |SET REFERENTIAL_INTEGRITY FALSE;
+         |
+         |truncate table files;
+         |truncate table settings;
+         |truncate table backup_sets;
+         |truncate table backup_sets_files;
+         |
+         |SET REFERENTIAL_INTEGRITY TRUE;
+       """.stripMargin.executeUpdate().apply()
+  }
 }

@@ -1,4 +1,4 @@
-import TestOps._
+import utils.TestOps._
 import better.files.File
 import com.typesafe.config.ConfigFactory
 import lib.serverapi._

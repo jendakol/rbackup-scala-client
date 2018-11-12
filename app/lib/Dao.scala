@@ -311,6 +311,43 @@ class Dao(executor: ExecutorService) extends StrictLogging {
         case NonFatal(e) => Left(DbException("Listing backup set files", e))
       }
   }
+
+  def markAsExecutedNow(backupSetId: Long): Result[Unit] = EitherT {
+    Task {
+      logger.debug(s"Updating backed up set in last execution time DB")
+
+      DB.autoCommit { implicit session =>
+        sql"""update backup_sets set last_execution = now() where id = ${backupSetId} """.update().apply()
+      }
+
+      Right(()): Either[AppException, Unit]
+    }.executeOn(sch)
+      .asyncBoundary
+      .onErrorRecover {
+        case NonFatal(e) => Left(DbException("Updating backup set last execution time", e))
+      }
+  }
+
+  def listBackupSetsToExecute(): Result[List[BackupSet]] = EitherT {
+    Task {
+      logger.debug(s"Listing files from backup set from DB")
+
+      val sets = DB.readOnly { implicit session =>
+        sql"""select * from backup_sets where last_execution is null OR (last_execution < DATEADD('MINUTE',-1 * frequency, now()))"""
+          .map(BackupSet.apply)
+          .list()
+          .apply()
+      }
+
+      logger.debug(s"Retrieved backup sets to be executed: $sets")
+
+      Right(sets): Either[AppException, List[BackupSet]]
+    }.executeOn(sch)
+      .asyncBoundary
+      .onErrorRecover {
+        case NonFatal(e) => Left(DbException("Listing backup set files", e))
+      }
+  }
 }
 
 case class DbFile(path: String, lastModified: ZonedDateTime, size: Long, remoteFile: RemoteFile)
