@@ -26,7 +26,8 @@ object DbScheme {
          |    id int primary key auto_increment not null,
          |    name varchar(200) not null,
          |    frequency int not null default 360,
-         |    last_execution DATETIME
+         |    last_execution DATETIME,
+         |    processing bool default false not null
          |);
          |
          |create table if not exists backup_sets_files

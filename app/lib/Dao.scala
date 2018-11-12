@@ -229,7 +229,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
         sql"""INSERT INTO backup_sets (name) VALUES (${name})""".updateAndReturnGeneratedKey().apply()
       }
 
-      val bs = BackupSet(id, name, Duration.ofHours(6), None)
+      val bs = BackupSet(id, name, Duration.ofHours(6), None, false)
 
       logger.debug(s"$bs saved")
 
@@ -317,7 +317,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       logger.debug(s"Updating backed up set in last execution time DB")
 
       DB.autoCommit { implicit session =>
-        sql"""update backup_sets set last_execution = now() where id = ${backupSetId} """.update().apply()
+        sql"""update backup_sets set last_execution = now(), processing = false where id = ${backupSetId} """.update().apply()
       }
 
       Right(()): Either[AppException, Unit]
@@ -328,12 +328,28 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       }
   }
 
+  def markAsProcessing(backupSetId: Long): Result[Unit] = EitherT {
+    Task {
+      logger.debug(s"Updating backed up set in last execution time DB")
+
+      DB.autoCommit { implicit session =>
+        sql"""update backup_sets set processing = true where id = ${backupSetId} """.update().apply()
+      }
+
+      Right(()): Either[AppException, Unit]
+    }.executeOn(sch)
+      .asyncBoundary
+      .onErrorRecover {
+        case NonFatal(e) => Left(DbException("Updating backup set processing flag", e))
+      }
+  }
+
   def listBackupSetsToExecute(): Result[List[BackupSet]] = EitherT {
     Task {
       logger.debug(s"Listing files from backup set from DB")
 
       val sets = DB.readOnly { implicit session =>
-        sql"""select * from backup_sets where last_execution is null OR (last_execution < DATEADD('MINUTE',-1 * frequency, now()))"""
+        sql"""select * from backup_sets where last_execution is null OR (last_execution < DATEADD('MINUTE',-1 * frequency, now())) AND processing = false"""
           .map(BackupSet.apply)
           .list()
           .apply()
@@ -370,7 +386,7 @@ object DbFile {
   }
 }
 
-case class BackupSet(id: Long, name: String, frequency: Duration, lastExecution: Option[ZonedDateTime])
+case class BackupSet(id: Long, name: String, frequency: Duration, lastExecution: Option[ZonedDateTime], processing: Boolean)
 
 object BackupSet {
   def apply(rs: WrappedResultSet): BackupSet = {
@@ -380,7 +396,8 @@ object BackupSet {
       id = long("id"),
       name = string("name"),
       frequency = Duration.ofMinutes(int("frequency")),
-      lastExecution = dateTimeOpt("last_execution")
+      lastExecution = dateTimeOpt("last_execution"),
+      processing = boolean("processing")
     )
   }
 }
