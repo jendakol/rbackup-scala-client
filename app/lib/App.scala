@@ -8,7 +8,9 @@ import monix.eval.Task
 import monix.execution.Scheduler
 import org.http4s.Uri
 
+import scala.collection.generic.CanBuildFrom
 import scala.concurrent.Future
+import scala.language.higherKinds
 
 object App {
   type Result[A] = EitherT[Task, AppException, A]
@@ -89,8 +91,50 @@ object App {
     }
   }
 
+  implicit class ResultSeqOps[A](val rs: Seq[Result[A]]) extends AnyVal {
+    def sequentially: Result[Seq[Either[AppException, A]]] = EitherT.right {
+      Task.sequence(rs.map(_.value))
+    }
+
+    def inparallel: Result[List[Either[AppException, A]]] = EitherT.right {
+      Task.gatherUnordered(rs.map(_.value))
+    }
+  }
+
+  implicit class TraversableOnceHelper[A, Coll[X] <: TraversableOnce[X]](val repr: Coll[A]) extends AnyVal {
+
+    def collectPartition[B, C](implicit ev: A <:< Either[B, C],
+                               bfLeft: CanBuildFrom[Coll[A], B, Coll[B]],
+                               bfRight: CanBuildFrom[Coll[A], C, Coll[C]]): (Coll[B], Coll[C]) = {
+      repr
+        .map(ev)
+        .collectPartition {
+          case Right(v) => Right(v)
+          case Left(v) => Left(v)
+        }
+        .asInstanceOf[(Coll[B], Coll[C])]
+    }
+
+    def collectPartition[B, C](f: PartialFunction[A, Either[B, C]])(implicit bfLeft: CanBuildFrom[Coll[A], B, Coll[B]],
+                                                                    bfRight: CanBuildFrom[Coll[A], C, Coll[C]]): (Coll[B], Coll[C]) = {
+      val left = bfLeft(repr)
+      val right = bfRight(repr)
+
+      repr.foreach { e =>
+        if (f.isDefinedAt(e)) {
+          f(e) match {
+            case Left(next) => left += next
+            case Right(next) => right += next
+          }
+        }
+      }
+
+      left.result -> right.result
+    }
+  }
+
   implicit class StringOps(val s: String) extends AnyVal {
-    def fixPath: String = s.replace('\\', '/')replace('\\', '/')
+    def fixPath: String = s.replace('\\', '/') replace ('\\', '/')
   }
 
 }

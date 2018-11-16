@@ -114,17 +114,22 @@ object RunningTask {
 
   case class FileUpload(fileName: String) extends RunningTask {
     override def toJson: Json =
-      parseUnsafe(s"""{ "name": "file-upload", "icon": "insert_drive_file", "data": { "file_name": "${fileName.fixPath}"} }""")
+      parseUnsafe(s"""{ "name": "file-upload", "data": { "file_name": "${fileName.fixPath}"} }""")
   }
 
   case class DirUpload(fileName: String) extends RunningTask {
     override def toJson: Json =
-      parseUnsafe(s"""{ "name": "dir-upload", "icon": "folder", "data": { "file_name": "${fileName.fixPath}"} }""")
+      parseUnsafe(s"""{ "name": "dir-upload", "data": { "file_name": "${fileName.fixPath}"} }""")
   }
 
   case class FileDownload(fileName: String) extends RunningTask {
     override def toJson: Json =
-      parseUnsafe(s"""{ "name": "file-download", "icon": "insert_drive_file", "data": { "file_name": "${fileName.fixPath}"} }""")
+      parseUnsafe(s"""{ "name": "file-download", "data": { "file_name": "${fileName.fixPath}"} }""")
+  }
+
+  case class BackupSetUpload(name: String) extends RunningTask {
+    override def toJson: Json =
+      parseUnsafe(s"""{ "name": "backupset-upload", "data": { "name": "$name"} }""")
   }
 
 }

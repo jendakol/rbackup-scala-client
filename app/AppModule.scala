@@ -4,7 +4,6 @@ import com.avast.metrics.scalaapi.Monitor
 import com.typesafe.scalalogging.StrictLogging
 import lib._
 import monix.execution.Scheduler
-import monix.execution.schedulers.SchedulerService
 import net.codingwell.scalaguice.ScalaModule
 import play.api.{Configuration, Environment}
 import scalikejdbc._
@@ -12,6 +11,7 @@ import scalikejdbc.config.DBs
 import utils.AllowedWsApiOrigins
 
 import scala.collection.JavaConverters._
+import scala.concurrent.ExecutionContext
 
 class AppModule(environment: Environment, configuration: Configuration)
     extends ScalaModule
@@ -29,7 +29,10 @@ class AppModule(environment: Environment, configuration: Configuration)
     bindConfig(config.root(), "")(binder())
 
     val executorService = Executors.newCachedThreadPool()
-    implicit val scheduler: SchedulerService = Scheduler(executorService) // TODO
+    implicit val scheduler: Scheduler = Scheduler(
+      executor = Executors.newScheduledThreadPool(4),
+      ec = ExecutionContext.fromExecutorService(executorService)
+    )
 
     val rootMonitor = Monitor.noOp()
 

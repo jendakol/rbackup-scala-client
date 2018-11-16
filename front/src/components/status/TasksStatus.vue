@@ -3,23 +3,12 @@
         <v-hover>
             <v-layout row justify-space-around d-flex color="lighten-1" slot-scope="{ hover }" :class="`elevation-${hover ? 3 : 1}`">
                 <v-list two-line>
-                    <v-list-tile v-for="(task, id) in runningTasks" :key="id">
-                        <v-list-tile-avatar>
-                            <v-icon>{{task.icon}}</v-icon>
-                        </v-list-tile-avatar>
-                        &nbsp;
-                        <v-list-tile-content>
-                            <v-list-tile-title v-html="task.name"></v-list-tile-title>
-                            <v-list-tile-sub-title v-html="task.data.file_name"></v-list-tile-sub-title>
-                        </v-list-tile-content>
-                        <v-progress-circular indeterminate small></v-progress-circular>
-                        <v-list-tile-action align-right>
-                            <v-tooltip bottom>
-                                <v-icon large slot="activator" color="red lighten-1" @click="cancel(id)">clear</v-icon>
-                                <span>Cancel this task</span>
-                            </v-tooltip>
-                        </v-list-tile-action>
-                    </v-list-tile>
+                    <div v-for="(task, id) in runningTasks">
+                        <FileUploadTask v-if="task.name === 'file-upload'" :task="task"></FileUploadTask>
+                        <DirUploadTask v-if="task.name === 'dir-upload'" :task="task"></DirUploadTask>
+                        <FileDownloadTask v-if="task.name === 'file-download'" :task="task"></FileDownloadTask>
+                        <BackupSetUploadTask v-if="task.name === 'backupset-upload'" :task="task"></BackupSetUploadTask>
+                    </div>
                 </v-list>
             </v-layout>
         </v-hover>
@@ -27,12 +16,23 @@
 </template>
 
 <script>
+    import FileUploadTask from '../../components/status/tasks/FileUploadTask.vue';
+    import DirUploadTask from '../../components/status/tasks/DirUploadTask.vue';
+    import FileDownloadTask from '../../components/status/tasks/FileDownloadTask.vue';
+    import BackupSetUploadTask from '../../components/status/tasks/BackupSetUploadTask.vue';
+
     export default {
         name: "TasksStatus",
         props: {
             ajax: Function,
             asyncActionWithNotification: Function,
             registerWsListener: Function
+        },
+        components: {
+            FileUploadTask,
+            DirUploadTask,
+            FileDownloadTask,
+            BackupSetUploadTask
         },
         data() {
             return {
