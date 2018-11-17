@@ -29,9 +29,11 @@ class TasksManagerTest extends FunSuite with MockitoSugar {
     var started = false
     var finished = false
 
-    val startTask = manager.start(runningTask, EitherT.right(Task {
-      started = true
-    }.delayResult(1.second).map(_ => finished = true)))
+    val startTask = manager.start(runningTask) {
+      EitherT.right(Task {
+        started = true
+      }.delayResult(1.second).map(_ => finished = true))
+    }
 
     assertResult(false)(started)
     assertResult(false)(finished)
@@ -77,9 +79,11 @@ class TasksManagerTest extends FunSuite with MockitoSugar {
     var started = false
     var finished = false
 
-    val startTask = manager.start(runningTask, EitherT.right(Task {
-      started = true
-    }.delayResult(1.second).map(_ => finished = true).map(_ => sys.error("blah"))))
+    val startTask = manager.start(runningTask) {
+      EitherT.right(Task {
+        started = true
+      }.delayResult(1.second).map(_ => finished = true).map(_ => sys.error("blah")))
+    }
 
     assertResult(false)(started)
     assertResult(false)(finished)
@@ -126,15 +130,16 @@ class TasksManagerTest extends FunSuite with MockitoSugar {
     var finished = false
     var cancelled = false
 
-    val startTask = manager.start(runningTask,
-                                  EitherT.right(
-                                    Task {
-                                      started = true
-                                    }.delayResult(1.second)
-                                      .doOnCancel(Task {
-                                        cancelled = true
-                                      })
-                                      .map(_ => finished = true)))
+    val startTask = manager.start(runningTask) {
+      EitherT.right(
+        Task {
+          started = true
+        }.delayResult(1.second)
+          .doOnCancel(Task {
+            cancelled = true
+          })
+          .map(_ => finished = true))
+    }
 
     assertResult(false)(started)
     assertResult(false)(finished)

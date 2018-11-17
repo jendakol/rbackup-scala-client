@@ -40,7 +40,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
 
         import scala.concurrent.duration._
 
-        tasksManager.start(RunningTask.FileUpload("theName"), EitherT.right(Task.unit.delayResult(10.seconds))) >>
+        tasksManager.start(RunningTask.FileUpload("theName"))(EitherT.right(Task.unit.delayResult(10.seconds))) >>
           cloudConnector.status
             .flatMap { str =>
               parse(s"""{"serverResponse": "$str"}""").toResult
@@ -211,12 +211,6 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       wsApiController.send("finishUpload", respJson)
     }
 
-    val uploadTask: Result[Unit] = for {
-      results <- filesHandler.uploadNow(file)
-      _ <- filesRegistry.reportBackedUpFilesList
-      _ <- reportResult(results)
-    } yield ()
-
     val runningTask = if (file.isDirectory) {
       RunningTask.DirUpload(file.pathAsString)
     } else {
@@ -224,7 +218,13 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
     }
 
     tasksManager
-      .start(runningTask, uploadTask)
+      .start(runningTask) {
+        for {
+          results <- filesHandler.uploadNow(file)
+          _ <- filesRegistry.reportBackedUpFilesList
+          _ <- reportResult(results)
+        } yield ()
+      }
       .map { _ =>
         parseUnsafe("""{ "success": true }""")
       }
@@ -289,10 +289,8 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
           })
       }
 
-    val runningTask = RunningTask.FileDownload(file.pathAsString)
-
     tasksManager
-      .start(runningTask, downloadTask)
+      .start(RunningTask.FileDownload(file.pathAsString))(downloadTask)
       .map { _ =>
         parseUnsafe("""{ "success": true }""")
       }

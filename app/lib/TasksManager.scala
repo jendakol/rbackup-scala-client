@@ -25,7 +25,7 @@ class TasksManager @Inject()(wsApiController: WsApiController)(implicit sch: Sch
   private val tasks = mutable.Map.empty[UUID, (CancelableFuture[Unit], RunningTask)]
   private val semaphore = Semaphore[Task](1).runSyncUnsafe(Duration.Inf)
 
-  def start(rt: RunningTask, exec: Result[Unit]): Result[Unit] = EitherT.right {
+  def start(rt: RunningTask)(exec: Result[Unit]): Result[Unit] = EitherT.right {
     semaphore.decrement.bracket { _ =>
       logger.debug(s"Starting task: $rt")
 

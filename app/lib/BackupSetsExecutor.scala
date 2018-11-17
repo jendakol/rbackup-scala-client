@@ -46,15 +46,13 @@ class BackupSetsExecutor @Inject()(dao: Dao, filesHandler: FilesHandler, tasksMa
   }
 
   private def process(bs: BackupSet)(implicit session: ServerSession): Result[Unit] = {
-    val rt = RunningTask.BackupSetUpload(bs.name)
-
-    val task = for {
-      _ <- dao.markAsProcessing(bs.id)
-      files <- dao.listFilesInBackupSet(bs.id)
-      _ <- files.map(filesHandler.uploadNow(_)).inparallel
-      _ <- dao.markAsExecutedNow(bs.id)
-    } yield {}
-
-    tasksManager.start(rt, task)
+    tasksManager.start(RunningTask.BackupSetUpload(bs.name)) {
+      for {
+        _ <- dao.markAsProcessing(bs.id)
+        files <- dao.listFilesInBackupSet(bs.id)
+        _ <- files.map(filesHandler.uploadNow(_)).inparallel
+        _ <- dao.markAsExecutedNow(bs.id)
+      } yield {}
+    }
   }
 }
