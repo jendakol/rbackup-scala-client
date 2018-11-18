@@ -21,6 +21,7 @@ import utils.ConfigProperty
 class FilesHandler @Inject()(cloudConnector: CloudConnector,
                              filesRegistry: CloudFilesRegistry,
                              wsApiController: WsApiController,
+                             dao: Dao,
                              settings: Settings,
                              @ConfigProperty("fileHandler.parallelism") maxParallelism: Int,
                              @ConfigProperty("fileHandler.retries") retries: Int,
@@ -92,70 +93,79 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
     }
   }
 
-  def uploadNow(file: File)(implicit session: ServerSession): Result[List[UploadResponse]] = {
+  def upload(file: File)(implicit session: ServerSession): Result[List[Option[UploadResponse]]] = {
     if (file.isDirectory) {
       uploadDir(file)
     } else {
-      withSemaphore {
-        logger.debug(s"Uploading ${transferringCnt.incrementAndGet()} files now")
+      checkFileUpdated(file).flatMap {
+        case false =>
+          logger.debug(s"File $file was not updated, will NOT be uploaded")
+          pureResult(List(None))
 
-        val attemptCounter = new AtomicInteger(0)
+        case true =>
+          logger.debug(s"File $file updated, will be uploaded")
 
-        cloudConnector
-          .upload(file) { (uploadedBytes, speed, isFinal) =>
-            wsApiController
-              .send(
-                WsMessage(
-                  `type` = "fileTransferUpdate",
-                  data = FileProgressUpdate(file.pathAsString,
-                                            `type` = "Uploading",
-                                            if (isFinal) "done" else "uploading",
-                                            Some(file.size),
-                                            Some(uploadedBytes),
-                                            Some(speed)).asJson
-                )
-              )
-              .runAsync {
-                case Left(ex) => logger.debug("Could not send file upload update", ex)
+          withSemaphore {
+            logger.debug(s"Uploading ${transferringCnt.incrementAndGet()} files now")
+
+            val attemptCounter = new AtomicInteger(0)
+
+            cloudConnector
+              .upload(file) { (uploadedBytes, speed, isFinal) =>
+                wsApiController
+                  .send(
+                    WsMessage(
+                      `type` = "fileTransferUpdate",
+                      data = FileProgressUpdate(file.pathAsString,
+                                                `type` = "Uploading",
+                                                if (isFinal) "done" else "uploading",
+                                                Some(file.size),
+                                                Some(uploadedBytes),
+                                                Some(speed)).asJson
+                    )
+                  )
+                  .runAsync {
+                    case Left(ex) => logger.debug("Could not send file upload update", ex)
+                  }
               }
-          }
-          .doOnCancel(Task {
-            logger.debug(s"Task was cancelled: upload of ${file.pathAsString}")
-            uploadedFailedMeter.mark()
-            transferringCnt.decrementAndGet()
-          })
-          .restartIf(handleRetries(attemptCounter.incrementAndGet(), file))
-          .withResult {
-            case Right(UploadResponse.Uploaded(_)) =>
-              logger.debug(s"File ${file.pathAsString} uploaded")
-              uploadedMeter.mark()
-              transferringCnt.decrementAndGet()
+              .doOnCancel(Task {
+                logger.debug(s"Task was cancelled: upload of ${file.pathAsString}")
+                uploadedFailedMeter.mark()
+                transferringCnt.decrementAndGet()
+              })
+              .restartIf(handleRetries(attemptCounter.incrementAndGet(), file))
+              .withResult {
+                case Right(UploadResponse.Uploaded(_)) =>
+                  logger.debug(s"File ${file.pathAsString} uploaded")
+                  uploadedMeter.mark()
+                  transferringCnt.decrementAndGet()
 
-            case Right(UploadResponse.Sha256Mismatch) =>
-              logger.info(s"SHA256 mismatch while uploading file ${file.pathAsString}")
-              uploadedFailedMeter.mark()
-              transferringCnt.decrementAndGet()
+                case Right(UploadResponse.Sha256Mismatch) =>
+                  logger.info(s"SHA256 mismatch while uploading file ${file.pathAsString}")
+                  uploadedFailedMeter.mark()
+                  transferringCnt.decrementAndGet()
 
-            case Left(appException) =>
-              logger.info(s"Error while uploading file ${file.pathAsString}", appException)
-              uploadedFailedMeter.mark()
-              transferringCnt.decrementAndGet()
-          }
-          .flatMap { r =>
-            updateFilesRegistry(file, r)
-              .map(_ => List(r))
+                case Left(appException) =>
+                  logger.info(s"Error while uploading file ${file.pathAsString}", appException)
+                  uploadedFailedMeter.mark()
+                  transferringCnt.decrementAndGet()
+              }
+              .flatMap { r =>
+                updateFilesRegistry(file, r)
+                  .map(_ => List(Option(r)))
+              }
           }
       }
     }
   }
 
-  private def uploadDir(file: File)(implicit session: ServerSession): Result[List[UploadResponse]] =
+  private def uploadDir(file: File)(implicit session: ServerSession): Result[List[Option[UploadResponse]]] =
     EitherT {
       Observable
         .fromIterator(file.children)
-        .mapParallelUnordered(maxParallelism)(uploadNow(_).value)
+        .mapParallelUnordered(maxParallelism)(upload(_).value)
         .toListL
-        .map(_.foldLeft[Either[AppException, List[UploadResponse]]](Right(List.empty)) { (prev, curr) =>
+        .map(_.foldLeft[Either[AppException, List[Option[UploadResponse]]]](Right(List.empty)) { (prev, curr) =>
           for {
             p <- prev
             c <- curr
@@ -181,6 +191,26 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
       case UploadResponse.Uploaded(remoteFile) => filesRegistry.updateFile(file, remoteFile)
       case _ => pureResult(())
     }
+  }
+
+  private def checkFileUpdated(file: File): Result[Boolean] = {
+    dao.getFile(file).map {
+      case Some(dbFile) if sameFile(file, dbFile) =>
+        logger.debug(s"File $file found in cache, is the same file -> nothing to do")
+        false
+
+      case Some(dbFile) =>
+        logger.debug(s"File $file found in cache with different content ($dbFile)")
+        true
+
+      case None =>
+        logger.debug(s"File $file wasn't found in DB")
+        true
+    }
+  }
+
+  private def sameFile(file: File, dbFile: DbFile): Boolean = {
+    dbFile.lastModified.toInstant == file.lastModifiedTime && dbFile.size == file.size
   }
 
   private def withSemaphore[A](a: => Result[A]): Result[A] = EitherT {

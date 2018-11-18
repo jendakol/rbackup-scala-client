@@ -34,7 +34,7 @@ class AppModule(environment: Environment, configuration: Configuration)
       ec = ExecutionContext.fromExecutorService(executorService)
     )
 
-    val rootMonitor = Monitor.noOp()
+    val rootMonitor = Monitor.noOp() // TODO
 
     bind[AllowedWsApiOrigins].toInstance(AllowedWsApiOrigins(config.getStringList("allowedWsApiOrigins").asScala))
 
@@ -51,6 +51,8 @@ class AppModule(environment: Environment, configuration: Configuration)
     bind[Monitor].annotatedWithName("FilesHandler").toInstance(rootMonitor.named("fileshandler"))
 
     bind[Scheduler].toInstance(scheduler)
+
+    bind[App].asEagerSingleton()
 
     // startup:
 

@@ -9,8 +9,7 @@ import com.typesafe.scalalogging.StrictLogging
 import io.circe.Json
 import io.circe.generic.extras.auto._
 import io.circe.syntax._
-import lib.App._
-import lib.App.StringOps
+import lib.App.{StringOps, _}
 import lib.clientapi.FileTreeNode.{Directory, RegularFile}
 import lib.serverapi.RemoteFile
 import org.http4s.Uri
@@ -252,11 +251,11 @@ object clientapi extends StrictLogging {
     object Directory {
       def apply(file: File): Directory = {
         val absolutePath = file.path.toAbsolutePath.toString
-        val n = absolutePath.fixPath.split("/").last
+        val n = absolutePath.fixPath.split("/").lastOption
 
         new Directory(
           absolutePath,
-          if (n != "") n else "/",
+          n.map(p => if (p != "") p else "/").getOrElse("/"),
           None
         )
       }

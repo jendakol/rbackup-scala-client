@@ -3,18 +3,23 @@ package lib
 import com.typesafe.scalalogging.StrictLogging
 import javax.inject.Inject
 import lib.App._
-import monix.execution.Scheduler
+import monix.execution.{Cancelable, Scheduler}
 
 import scala.concurrent.duration._
 
 class BackupSetsExecutor @Inject()(dao: Dao, filesHandler: FilesHandler, tasksManager: TasksManager, settings: Settings)(
     implicit scheduler: Scheduler)
     extends StrictLogging {
-  scheduler.scheduleAtFixedRate(10.seconds, 1.minute) {
-    logger.debug("Executing waiting backup sets")
-    settings.session.map {
-      case Some(sid) => processWaitingBackupSets()(sid)
-      case None => logger.info("Could not process backup sets - missing server session")
+
+  def start: Cancelable = {
+    logger.info("Started execution of backup sets")
+
+    scheduler.scheduleAtFixedRate(10.seconds, 1.minute) {
+      logger.debug("Executing waiting backup sets")
+      settings.session.map {
+        case Some(sid) => processWaitingBackupSets()(sid)
+        case None => logger.info("Could not process backup sets - missing server session")
+      }
     }
   }
 
@@ -50,7 +55,7 @@ class BackupSetsExecutor @Inject()(dao: Dao, filesHandler: FilesHandler, tasksMa
       for {
         _ <- dao.markAsProcessing(bs.id)
         files <- dao.listFilesInBackupSet(bs.id)
-        _ <- files.map(filesHandler.uploadNow(_)).inparallel
+        _ <- files.map(filesHandler.upload(_)).inparallel // TODO
         _ <- dao.markAsExecutedNow(bs.id)
       } yield {}
     }

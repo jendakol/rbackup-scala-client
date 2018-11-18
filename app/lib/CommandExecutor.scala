@@ -189,16 +189,17 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
   }
 
   private def uploadManually(file: File)(implicit ss: ServerSession): Result[Json] = {
-    def reportResult(results: List[UploadResponse]): Result[Unit] = {
+    def reportResult(results: List[Option[UploadResponse]]): Result[Unit] = {
       val respJson = if (results.size == 1) {
         results.head match {
-          case UploadResponse.Uploaded(_) => parseUnsafe(s"""{ "success": true, "path": ${file.pathAsString.asJson} }""")
-          case UploadResponse.Sha256Mismatch =>
-            parseUnsafe(s"""{ "success": false,, "path": ${file.pathAsString.asJson} "reason": "SHA-256 mismatch" }""")
+          case None => parseUnsafe(s"""{ "success": true, "path": ${file.pathAsString.asJson} }""")
+          case Some(UploadResponse.Uploaded(_)) => parseUnsafe(s"""{ "success": true, "path": ${file.pathAsString.asJson} }""")
+          case Some(UploadResponse.Sha256Mismatch) =>
+            parseUnsafe(s"""{ "success": false, "path": ${file.pathAsString.asJson} "reason": "SHA-256 mismatch" }""")
         }
       } else {
         val failures = results.collect {
-          case UploadResponse.Sha256Mismatch => "Could not upload file" // TODO this is sad
+          case Some(UploadResponse.Sha256Mismatch) => "Could not upload file" // TODO this is sad
         }
 
         if (failures.nonEmpty) {
@@ -220,7 +221,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
     tasksManager
       .start(runningTask) {
         for {
-          results <- filesHandler.uploadNow(file)
+          results <- filesHandler.upload(file)
           _ <- filesRegistry.reportBackedUpFilesList
           _ <- reportResult(results)
         } yield ()

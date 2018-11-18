@@ -13,6 +13,7 @@ import io.circe.syntax._
 import javax.inject.{Inject, Singleton}
 import lib.App._
 import lib.App.StringOps
+import lib.RunningTask.BackupSetUpload
 import monix.eval.Task
 import monix.execution.{CancelableFuture, Scheduler}
 
@@ -79,7 +80,7 @@ class TasksManager @Inject()(wsApiController: WsApiController)(implicit sch: Sch
   }
 
   private def getAll: Task[Map[UUID, RunningTask]] = Task {
-    tasks.mapValues(_._2).toMap
+    tasks.mapValues(_._2).toMap ++ Map(UUID.randomUUID() -> BackupSetUpload("theName"))
   }
 
   private def notifyUi_(): Task[Unit] = {

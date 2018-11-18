@@ -4,13 +4,29 @@ import cats.data.EitherT
 import cats.syntax.either._
 import com.avast.metrics.scalaapi.Timer
 import io.circe.Json
+import javax.inject.{Inject, Singleton}
 import monix.eval.Task
-import monix.execution.Scheduler
+import monix.execution.{Cancelable, Scheduler}
 import org.http4s.Uri
+import play.api.inject.ApplicationLifecycle
 
 import scala.collection.generic.CanBuildFrom
 import scala.concurrent.Future
 import scala.language.higherKinds
+
+@Singleton
+class App @Inject()(backupSetsExecutor: BackupSetsExecutor)(lifecycle: ApplicationLifecycle)(implicit sch: Scheduler) {
+
+  lifecycle.addStopHook { () =>
+    stop.runAsync
+  }
+
+  private val bse: Cancelable = backupSetsExecutor.start
+
+  def stop: Task[Unit] = Task {
+    bse.cancel()
+  }
+}
 
 object App {
   type Result[A] = EitherT[Task, AppException, A]
@@ -134,7 +150,7 @@ object App {
   }
 
   implicit class StringOps(val s: String) extends AnyVal {
-    def fixPath: String = s.replace('\\', '/') replace ('\\', '/')
+    def fixPath: String = s.replace('\\', '/').replace('\\', '/')
   }
 
 }
