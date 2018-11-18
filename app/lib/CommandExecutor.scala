@@ -12,7 +12,7 @@ import io.circe.syntax._
 import javax.inject.{Inject, Singleton}
 import lib.App._
 import lib.AppException.LoginRequired
-import lib.clientapi.{FileTree, FileTreeNode}
+import lib.clientapi.{BackupSetNode, FileTree, FileTreeNode}
 import lib.serverapi._
 import monix.eval.Task
 import monix.execution.Scheduler
@@ -67,7 +67,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       login(host, username, password)
 
     case LogoutCommand =>
-      settings.session(None).map(_ => parseUnsafe("""{ "success": true }"""))
+      settings.session(None).mapToJsonSuccess
 
     case CancelTaskCommand(id) =>
       tasksManager.cancel(id).map {
@@ -97,12 +97,8 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
     case DirListCommand(path) =>
       dirList(path)
 
-    //    case SaveFileTreeCommand(files) =>
-    ////            logger.debug(better.files.head.flatten.mkString("", "\n", ""))
-    //
-    //      pureResult {
-    //        Json.Null
-    //      }
+    case BackupSetFilesCommand(files) =>
+      updateBackupSetFilesList(files).mapToJsonSuccess
 
   }
 
@@ -170,10 +166,12 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
         cloudConnector.login(uri, deviceId, username, password).flatMap {
           case LoginResponse.SessionCreated(sessionId) =>
             logger.info("Session on backend created")
-            stateManager.login(sessionId).map(_ => parseUnsafe("""{ "success": true }"""))
+            stateManager.login(sessionId).mapToJsonSuccess
+
           case LoginResponse.SessionRecovered(sessionId) =>
             logger.info("Session on backend restored")
-            stateManager.login(sessionId).map(_ => parseUnsafe("""{ "success": true }"""))
+            stateManager.login(sessionId).mapToJsonSuccess
+
           case LoginResponse.Failed =>
             pureResult(parseUnsafe("""{ "success": false }"""))
         }
@@ -226,9 +224,13 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
           _ <- reportResult(results)
         } yield ()
       }
-      .map { _ =>
-        parseUnsafe("""{ "success": true }""")
-      }
+      .mapToJsonSuccess
+  }
+
+  private def updateBackupSetFilesList(files: Seq[BackupSetNode]): Result[Unit] = {
+    val normalized = files.flatMap(_.flattenNormalize)
+
+    dao.updateFilesInBackupSet(68, normalized.map(n => File(n.value)))
   }
 
   /*
@@ -292,9 +294,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
 
     tasksManager
       .start(RunningTask.FileDownload(file.pathAsString))(downloadTask)
-      .map { _ =>
-        parseUnsafe("""{ "success": true }""")
-      }
+      .mapToJsonSuccess
   }
 
   private def withSession[A](f: ServerSession => Result[A]): Result[A] = {

@@ -1,13 +1,11 @@
 package lib
 
-import cats.data
 import cats.data.NonEmptyList
 import cats.instances.string._
 import lib.clientapi.FileTree
 import lib.clientapi.FileTreeNode._
 import lib.serverapi.RemoteFile
 import org.scalatest.FunSuite
-import views.html.helper.input
 
 class FileTreeTest extends FunSuite {
 

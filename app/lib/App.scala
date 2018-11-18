@@ -41,6 +41,8 @@ object App {
 
   def parseUnsafe(str: String): Json = io.circe.parser.parse(str).getOrElse(throw new RuntimeException(s"BUG :-( - could not parse\n$str"))
 
+  final val JsonSuccess: Json = parseUnsafe("""{ "success": true }""")
+
   final val DateTimeFormatter = java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm:ss")
 
   implicit class CirceOps[A](val e: Either[io.circe.Error, A]) {
@@ -48,6 +50,8 @@ object App {
   }
 
   implicit class ResultOps[A](val r: Result[A]) extends AnyVal {
+
+    def mapToJsonSuccess: Result[Json] = r.map(_ => JsonSuccess)
 
     /** Adds asynchronous callback to the `Result` and returns new `Result` which contains the callback. Has to be part of the chain.
       */

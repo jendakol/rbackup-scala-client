@@ -259,7 +259,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       }
   }
 
-  def updateFilesInBackupSet(setId: Long, files: List[File]): Result[Unit] = EitherT {
+  def updateFilesInBackupSet(setId: Long, files: Seq[File]): Result[Unit] = EitherT {
     Task {
       logger.debug(s"Updating backed up set files in DB")
 

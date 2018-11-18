@@ -1,14 +1,15 @@
 package lib
 
+import java.nio.file.Paths
 import java.time.ZoneId
 
 import better.files.File
 import cats.data.NonEmptyList
 import cats.instances.string._
 import com.typesafe.scalalogging.StrictLogging
-import io.circe.Json
-import io.circe.generic.extras.auto._
+import io.circe.generic.extras.Configuration
 import io.circe.syntax._
+import io.circe.{Decoder, Json}
 import lib.App.{StringOps, _}
 import lib.clientapi.FileTreeNode.{Directory, RegularFile}
 import lib.serverapi.RemoteFile
@@ -283,6 +284,47 @@ object clientapi extends StrictLogging {
       }
     }
 
+  }
+
+  case class BackupSetNode(selected: Boolean,
+                           loading: Boolean,
+                           value: String,
+                           text: String,
+                           isLeaf: Boolean = false,
+                           isFile: Boolean = false,
+                           isDir: Boolean = false,
+                           children: Seq[BackupSetNode],
+                           icon: String) {
+    def flatten: Seq[BackupSetNode] = {
+      (this +: children.flatMap(_.flatten)).filterNot(_.loading)
+    }
+
+    def toIterable: Iterable[BackupSetNode] = new Iterable[BackupSetNode] {
+      override def iterator: Iterator[BackupSetNode] = BackupSetNode.this.flatten.iterator
+    }
+
+    def flattenNormalize: Seq[BackupSetNode] = {
+      val map = flatten.filter(_.selected).map(n => Paths.get(n.value) -> n).sortBy(_._1).toMap
+
+      val keys = map.keySet
+
+      map
+        .filterKeys { path =>
+          !keys.exists(p => p != path && path.startsWith(p))
+        }
+        .values
+        .toSeq
+    }
+
+  }
+
+  object BackupSetNode {
+
+    import io.circe.generic.extras.semiauto._
+
+    implicit val customConfig: Configuration = Configuration.default.withDefaults
+
+    implicit val decoder: Decoder[BackupSetNode] = deriveDecoder
   }
 
 }

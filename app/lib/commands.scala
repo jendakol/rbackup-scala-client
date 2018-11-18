@@ -3,9 +3,10 @@ package lib
 import java.util.UUID
 
 import io.circe.Json
-import io.circe.generic.extras.auto._
+import io.circe.generic.auto._
 import lib.App._
 import lib.CirceImplicits._
+import lib.clientapi.BackupSetNode
 import lib.serverapi.{LoginResponse, RegistrationResponse}
 
 sealed trait Command
@@ -16,7 +17,7 @@ object Command {
     case "status" => Some(StatusCommand)
     case "backedUpFileList" => Some(BackedUpFileListCommand)
     case "dirList" => data.flatMap(_.as[DirListCommand].toOption)
-    //    case "saveFileTree" => data.flatMap(_.as[Seq[FileFromTree]].toOption).map(SaveFileTreeCommand)
+    case "backupSetFiles" => data.flatMap(_.as[Seq[BackupSetNode]].toOption).map(BackupSetFilesCommand)
     case "register" => data.flatMap(_.as[RegisterCommand].toOption)
     case "login" => data.flatMap(_.as[LoginCommand].toOption)
     case "logout" => Some(LogoutCommand)
@@ -35,7 +36,7 @@ case class DirListCommand(path: String) extends Command
 
 case object BackedUpFileListCommand extends Command
 
-//case class SaveFileTreeCommand(files: Seq[FileFromTree]) extends Command
+case class BackupSetFilesCommand(files: Seq[BackupSetNode]) extends Command
 
 case class RegisterCommand(host: String, username: String, password: String) extends Command
 
