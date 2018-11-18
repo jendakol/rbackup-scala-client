@@ -12,6 +12,7 @@ import io.circe.syntax._
 import javax.inject.{Inject, Singleton}
 import lib.App._
 import lib.AppException.LoginRequired
+import lib.CirceImplicits._
 import lib.clientapi.{BackupSetNode, FileTree, FileTreeNode}
 import lib.serverapi._
 import monix.eval.Task
@@ -26,6 +27,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
                                 tasksManager: TasksManager,
                                 wsApiController: WsApiController,
                                 dao: Dao,
+                                backupSetsExecutor: BackupSetsExecutor,
                                 settings: Settings,
                                 stateManager: StateManager,
                                 @ConfigProperty("deviceId") deviceId: String)(implicit scheduler: Scheduler)
@@ -94,11 +96,31 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
     case BackedUpFileListCommand =>
       backedUpList
 
+    case BackupSetsListCommand =>
+      dao.listAllBackupSets().map { bs =>
+        parseUnsafe(s"""{"success": true, "data": ${bs.asJson}}""")
+      }
+
+    case BackupSetDetailsCommand(id) =>
+      dao.listFilesInBackupSet(id).map { files =>
+        parseUnsafe(s"""{"success": true, "data": {"files": ${files.map(_.pathAsString).asJson}}}""")
+      }
+
+    case BackupSetExecuteCommand(id) =>
+      withSession { implicit session =>
+        for {
+          bs <- dao.getBackupSet(id)
+          _ <- backupSetsExecutor.execute(bs.getOrElse(throw new IllegalArgumentException("Backup set not found"))) // TODO
+        } yield {
+          JsonSuccess
+        }
+      }
+
     case DirListCommand(path) =>
       dirList(path)
 
-    case BackupSetFilesCommand(files) =>
-      updateBackupSetFilesList(files).mapToJsonSuccess
+    case BackupSetFilesUpdateCommand(id, files) =>
+      updateBackupSetFilesList(id, files).mapToJsonSuccess
 
   }
 
@@ -179,7 +201,9 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
   }
 
   private def processEvent(event: Event): Result[Unit] = event match {
-    case InitEvent(page) =>
+    case InitEvent => pureResult(())
+
+    case PageInitEvent(page) =>
       page match {
         case "status" => tasksManager.notifyUi()
         case _ => pureResult(())
@@ -227,10 +251,10 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       .mapToJsonSuccess
   }
 
-  private def updateBackupSetFilesList(files: Seq[BackupSetNode]): Result[Unit] = {
+  private def updateBackupSetFilesList(bsId: Long, files: Seq[BackupSetNode]): Result[Unit] = {
     val normalized = files.flatMap(_.flattenNormalize)
 
-    dao.updateFilesInBackupSet(68, normalized.map(n => File(n.value)))
+    dao.updateFilesInBackupSet(bsId, normalized.map(n => File(n.value)))
   }
 
   /*

@@ -1,31 +1,25 @@
 <template>
-    <div>
-        <v-jstree :data="fileTreeData" :item-events="itemEvents" :async="loadData" show-checkbox multiple allow-batch
-                  whole-row></v-jstree>
-
-        <BottomBar>
-            <v-btn @click="saveBackupSelection" color="success">Save</v-btn>
-        </BottomBar>
-
-        <vue-context ref="fileMenu">
-            <ul>
-                <li @click="uploadManually">Upload file now</li>
-            </ul>
-        </vue-context>
-        <vue-context ref="dirMenu">
-            <ul>
-                <li @click="uploadManually">Upload dir now</li>
-            </ul>
-        </vue-context>
-    </div>
+    <v-tabs v-model="active" fill-height>
+        <v-tab v-for="(backupSet, id) in backupSets" :key="id">
+            {{backupSet.name}}
+        </v-tab>
+        <v-tab-item v-for="(backupSet, id) in backupSets" :key="id"
+                    v-bind:ajax="this.ajax"
+                    v-bind:registerWsListener="this.registerWsListener"
+                    v-bind:asyncActionWithNotification="this.asyncActionWithNotification">
+            <v-container fluid fill-height>
+                <v-flex grow>
+                    <BackupSet :key="id" :backupSet="backupSet" :ajax="ajax"
+                               :registerWsListener="registerWsListener"
+                               :asyncActionWithNotification="asyncActionWithNotification"/>
+                </v-flex>
+            </v-container>
+        </v-tab-item>
+    </v-tabs>
 </template>
 
 <script>
-    import VJstree from 'vue-jstree';
-    import {VueContext} from 'vue-context';
-    import JSPath from 'jspath';
-
-    import BottomBar from '../components/BottomBar.vue';
+    import BackupSet from '../components/BackupSet.vue';
 
     export default {
         name: "Backup",
@@ -35,54 +29,23 @@
             registerWsListener: Function
         },
         components: {
-            VJstree,
-            VueContext,
-            BottomBar
+            BackupSet
         },
         created() {
-            this.registerWsListener(this.receiveWs)
+            this.ajax("backupSetsList")
+                .then(response => {
+                    if (response.success) {
+                        this.backupSets = response.data;
+                    } else {
+                        this.$snotify.error("Could not load backup sets :-(")
+                    }
+                });
         },
         data() {
             return {
-                fileTreeData: [],
-                loadData: (oriNode, resolve) => {
-                    let path = oriNode.data.value;
-
-                    this.ajax("dirList", {path: path != undefined ? path + "" : ""})
-                        .then(response => {
-                            resolve(response)
-                        })
-
-                },
-                rightClicked: null,
-                itemEvents: {
-                    contextmenu: (a, item, event) => {
-                        this.rightClicked = item;
-
-                        if (item.isFile) {
-                            this.$refs.fileMenu.open(event);
-                        } else if (item.isDir) {
-                            this.$refs.dirMenu.open(event);
-                        } else console.log("It's weird - not version nor dir nor file");
-
-                        event.preventDefault()
-                    }
-                }
+                active: 0,
+                backupSets: [],
             }
-        }, methods: {
-            saveBackupSelection() {
-                alert()
-            },
-            uploadManually() {
-                let path = this.rightClicked.value;
-
-                this.ajax("upload", {path: path});
-            },
-            receiveWs(message) {
-            },
-            selectTreeNode(path) {
-                return JSPath.apply("..{.value === '" + path + "'}", this.fileTreeData)[0]
-            },
-        }
+        }, methods: {}
     }
 </script>

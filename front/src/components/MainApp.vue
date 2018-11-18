@@ -55,6 +55,9 @@
                             <Backup v-if="visiblePage === 'backup'" :ajax="this.ajax" :registerWsListener="this.addWsListener"
                                     :asyncActionWithNotification="this.asyncActionWithNotification"/>
 
+                            <BackupManual v-if="visiblePage === 'backup-manual'" :ajax="this.ajax" :registerWsListener="this.addWsListener"
+                                          :asyncActionWithNotification="this.asyncActionWithNotification"/>
+
                             <Restore v-if="visiblePage === 'restore'" :ajax="this.ajax" :registerWsListener="this.addWsListener"
                                      :asyncActionWithNotification="this.asyncActionWithNotification"/>
                         </p>
@@ -77,6 +80,7 @@
 
     import Status from '../components/Status.vue';
     import Backup from '../components/Backup.vue';
+    import BackupManual from '../components/BackupManual.vue';
     import Restore from '../components/Restore.vue';
 
     export default {
@@ -85,6 +89,7 @@
             VueContext,
             Status,
             Backup,
+            BackupManual,
             Restore
         },
         props: {
@@ -99,23 +104,30 @@
                 connectionCheck: null,
                 wsListeners: Array(),
                 visiblePage: "status",
+                lastHeartBeatReceived: null,
                 drawerMenu: [
                     {
                         title: 'Status', icon: 'dashboard', action: () => {
                             this.visiblePage = "status";
-                            this.sendInitEvent();
+                            this.sendPageInitEvent();
                         }
                     },
                     {
-                        title: 'Backup', icon: 'cloud_upload', action: () => {
+                        title: 'Backup sets', icon: 'cloud_upload', action: () => {
                             this.visiblePage = "backup";
-                            this.sendInitEvent();
+                            this.sendPageInitEvent();
+                        }
+                    },
+                    {
+                        title: 'Manual upload', icon: 'cloud_upload', action: () => {
+                            this.visiblePage = "backup-manual";
+                            this.sendPageInitEvent();
                         }
                     },
                     {
                         title: 'Restore', icon: 'cloud_download', action: () => {
                             this.visiblePage = "restore";
-                            this.sendInitEvent();
+                            this.sendPageInitEvent();
                         }
                     }
                 ],
@@ -141,7 +153,7 @@
             };
             this.ws.onclose = () => {
                 this.isConnected = false;
-                this.initWs();
+                // this.initWs();
             };
             this.ws.onerror = (err) => {
                 this.isConnected = false;
@@ -151,23 +163,32 @@
             this.ws.onmessage = (data) => {
                 this.receiveWs(JSON.parse(data.data));
             };
+
+            // heartbeat
+            setInterval(() => {
+                if (this.lastHeartBeatReceived + 2000 < new Date().getTime()) {
+                    console.log("Missed heartbeat!");
+                    // this.initWs()
+                }
+            }, 3000)
         },
         methods: {
-            initWs() {
+            initWs(showNotif) {
                 this.ws = new WebSocket("ws://" + this.hostUrl + "/ws-api");
 
                 this.connectionCheck = setInterval(() => {
                     if (this.ws.readyState === 1) {
                         this.isConnected = true;
-                        this.$snotify.success("Connection to client backend was successful", {timeout: 1500});
+                        this.ws.send(JSON.stringify({type: "init", data: {page: this.visiblePage}}));
+                        if (showNotif === false) this.$snotify.success("Connection to client backend was successful", {timeout: 1500});
                         clearInterval(this.connectionCheck);
-                        this.sendInitEvent()
+                        this.sendPageInitEvent()
                     }
                 }, 1000);
             },
-            sendInitEvent() {
+            sendPageInitEvent() {
                 if (this.ws.readyState === 1) {
-                    this.ws.send(JSON.stringify({type: "init", data: {page: this.visiblePage}}));
+                    this.ws.send(JSON.stringify({type: "page-init", data: {page: this.visiblePage}}));
                 } else this.initWs()
             },
             logout() {
@@ -192,6 +213,11 @@
                 });
 
                 switch (message.type) {
+                    case "heartbeat": {
+                        this.lastHeartBeatReceived = new Date().getTime()
+                    }
+                        break;
+
                     case "finishUpload": {
                         let resp = message.data;
 

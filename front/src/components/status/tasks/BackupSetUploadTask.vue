@@ -1,5 +1,5 @@
 <template>
-    <v-list-tile :key="id">
+    <v-list-tile>
         <v-list-tile-avatar>
             <v-icon>list</v-icon>
         </v-list-tile-avatar>
@@ -21,8 +21,9 @@
     export default {
         name: "BackupSetUploadTask",
         props: {
+            id: String,
             task: Object,
-            id: String
+            cancel: Function
         },
         data() {
             return {}

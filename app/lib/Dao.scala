@@ -259,6 +259,24 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       }
   }
 
+  def getBackupSet(id: Long): Result[Option[BackupSet]] = EitherT {
+    Task {
+      logger.debug(s"Getting backup set from DB")
+
+      val bs = DB.readOnly { implicit session =>
+        sql"""select * from backup_sets where id=${id}""".map(BackupSet.apply).single().apply()
+      }
+
+      logger.debug(s"Retrieved backup set: $bs")
+
+      Right(bs): Either[AppException, Option[BackupSet]]
+    }.executeOn(sch)
+      .asyncBoundary
+      .onErrorRecover {
+        case NonFatal(e) => Left(DbException(s"Getting backup set ID $id", e))
+      }
+  }
+
   def updateFilesInBackupSet(setId: Long, files: Seq[File]): Result[Unit] = EitherT {
     Task {
       logger.debug(s"Updating backed up set files in DB")

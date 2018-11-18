@@ -80,7 +80,7 @@ class TasksManager @Inject()(wsApiController: WsApiController)(implicit sch: Sch
   }
 
   private def getAll: Task[Map[UUID, RunningTask]] = Task {
-    tasks.mapValues(_._2).toMap ++ Map(UUID.randomUUID() -> BackupSetUpload("theName"))
+    tasks.mapValues(_._2).toMap
   }
 
   private def notifyUi_(): Task[Unit] = {

@@ -1,12 +1,12 @@
 package lib
 
-import java.time.{LocalDateTime, ZoneId, ZonedDateTime}
+import java.time.{Duration, LocalDateTime, ZoneId, ZonedDateTime}
 import java.util.UUID
 
+import cats.syntax.either._
 import io.circe.generic.extras.Configuration
 import io.circe.{Decoder, Encoder}
 import org.http4s.Uri
-import cats.syntax.either._
 
 object CirceImplicits {
   implicit val configuration: Configuration = Configuration.default.withSnakeCaseConstructorNames.withSnakeCaseMemberNames
@@ -21,5 +21,6 @@ object CirceImplicits {
   implicit val e3: Encoder[ZonedDateTime] = Encoder.encodeString.contramap(_.toLocalDateTime.toString)
   implicit val e4: Encoder[Sha256] = Encoder.encodeString.contramap(_.toString)
   implicit val e5: Encoder[Uri] = Encoder.encodeString.contramap(_.toString)
+  implicit val e6: Encoder[Duration] = Encoder.encodeLong.contramap(_.toHours)
 
 }

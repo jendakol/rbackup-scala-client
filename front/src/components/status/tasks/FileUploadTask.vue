@@ -22,7 +22,8 @@
         name: "FileUploadTask",
         props: {
             task: Object,
-            id: String
+            id: String,
+            cancel: Function
         },
         data() {
             return {}

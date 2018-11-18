@@ -17,16 +17,16 @@ class BackupSetsExecutor @Inject()(dao: Dao, filesHandler: FilesHandler, tasksMa
     scheduler.scheduleAtFixedRate(10.seconds, 1.minute) {
       logger.debug("Executing waiting backup sets")
       settings.session.map {
-        case Some(sid) => processWaitingBackupSets()(sid)
+        case Some(sid) => executeWaitingBackupSets()(sid)
         case None => logger.info("Could not process backup sets - missing server session")
       }
     }
   }
 
-  private def processWaitingBackupSets()(implicit session: ServerSession): Unit = {
+  private def executeWaitingBackupSets()(implicit session: ServerSession): Unit = {
     (for {
       sets <- dao.listBackupSetsToExecute()
-      allResult <- sets.map(process).sequentially
+      allResult <- sets.map(execute).sequentially
     } yield {
       (sets zip allResult).toMap
     }).runAsync {
@@ -50,7 +50,7 @@ class BackupSetsExecutor @Inject()(dao: Dao, filesHandler: FilesHandler, tasksMa
     }
   }
 
-  private def process(bs: BackupSet)(implicit session: ServerSession): Result[Unit] = {
+  def execute(bs: BackupSet)(implicit session: ServerSession): Result[Unit] = {
     tasksManager.start(RunningTask.BackupSetUpload(bs.name)) {
       for {
         _ <- dao.markAsProcessing(bs.id)

@@ -3,11 +3,12 @@
         <v-hover>
             <v-layout row justify-space-around d-flex color="lighten-1" slot-scope="{ hover }" :class="`elevation-${hover ? 3 : 1}`">
                 <v-list two-line>
-                    <div v-for="(task, id) in runningTasks">
-                        <FileUploadTask v-if="task.name === 'file-upload'" :task="task"></FileUploadTask>
-                        <DirUploadTask v-if="task.name === 'dir-upload'" :task="task"></DirUploadTask>
-                        <FileDownloadTask v-if="task.name === 'file-download'" :task="task"></FileDownloadTask>
-                        <BackupSetUploadTask v-if="task.name === 'backupset-upload'" :task="task"></BackupSetUploadTask>
+                    <div v-for="(task, id) in runningTasks" v-bind:oncancel="this.cancel">
+                        <FileUploadTask v-if="task.name === 'file-upload'" :id="id" :task="task" :cancel="cancel"></FileUploadTask>
+                        <DirUploadTask v-if="task.name === 'dir-upload'" :id="id" :task="task" :cancel="cancel"></DirUploadTask>
+                        <FileDownloadTask v-if="task.name === 'file-download'" :id="id" :task="task" :cancel="cancel"></FileDownloadTask>
+                        <BackupSetUploadTask v-if="task.name === 'backupset-upload'" :id="id" :task="task"
+                                             :cancel="cancel"></BackupSetUploadTask>
                     </div>
                 </v-list>
             </v-layout>
@@ -44,6 +45,7 @@
         },
         methods: {
             cancel(id) {
+                console.log("Cancelling task "+id);
                 this.asyncActionWithNotification("cancelTask", {id: id}, "Cancelling task", (resp) => new Promise((success, error) => {
                     if (resp.success) {
                         // TODO display cancelled task?
