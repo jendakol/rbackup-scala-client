@@ -1,14 +1,18 @@
 package lib
 
 import com.typesafe.scalalogging.StrictLogging
+import controllers.WsApiController
 import javax.inject.Inject
-import lib.App._
+import lib.App.{parseUnsafe, _}
 import monix.execution.{Cancelable, Scheduler}
 
 import scala.concurrent.duration._
 
-class BackupSetsExecutor @Inject()(dao: Dao, filesHandler: FilesHandler, tasksManager: TasksManager, settings: Settings)(
-    implicit scheduler: Scheduler)
+class BackupSetsExecutor @Inject()(dao: Dao,
+                                   filesHandler: FilesHandler,
+                                   tasksManager: TasksManager,
+                                   wsApiController: WsApiController,
+                                   settings: Settings)(implicit scheduler: Scheduler)
     extends StrictLogging {
 
   def start: Cancelable = {
@@ -51,13 +55,42 @@ class BackupSetsExecutor @Inject()(dao: Dao, filesHandler: FilesHandler, tasksMa
   }
 
   def execute(bs: BackupSet)(implicit session: ServerSession): Result[Unit] = {
-    tasksManager.start(RunningTask.BackupSetUpload(bs.name)) {
-      for {
-        _ <- dao.markAsProcessing(bs.id)
-        files <- dao.listFilesInBackupSet(bs.id)
-        _ <- files.map(filesHandler.upload(_)).inparallel // TODO
-        _ <- dao.markAsExecutedNow(bs.id)
-      } yield {}
+    def updateUi(): Result[Unit] = dao.getBackupSet(bs.id).flatMap {
+      case Some(currentBs) =>
+        val lastTime = currentBs.lastExecution.map(DateTimeFormatter.format).getOrElse("never")
+        val nextTime = currentBs.lastExecution.map(_.plus(currentBs.frequency)).map(DateTimeFormatter.format).getOrElse("soon")
+
+        wsApiController.send(
+          "backupSetDetailsUpdate",
+          parseUnsafe(
+            s"""{ "id": ${currentBs.id}, "type": "processing", "processing": ${currentBs.processing}, "last_execution": "$lastTime", "next_execution": "$nextTime"}""")
+        )
+
+      case None => throw new IllegalStateException("Must NOT happen")
     }
+
+    tasksManager
+      .start(RunningTask.BackupSetUpload(bs.name)) {
+        (for {
+          _ <- dao.markAsProcessing(bs.id)
+          _ <- updateUi()
+          files <- dao.listFilesInBackupSet(bs.id)
+          _ <- files.map(filesHandler.upload(_)).inparallel // TODO
+          _ <- dao.markAsExecutedNow(bs.id)
+          _ <- updateUi()
+          _ <- wsApiController.send(
+            "backupFinish",
+            parseUnsafe(s"""{ "success": true, "name": "${bs.name}"}""")
+          )
+        } yield {}).recoverWith {
+          case e =>
+            logger.debug(s"Backup set execution failed ($bs)", e)
+            wsApiController.send(
+              "backupFinish",
+              parseUnsafe(s"""{ "success": true, "name": "${bs.name}"}""")
+            )
+        }
+      }
+
   }
 }

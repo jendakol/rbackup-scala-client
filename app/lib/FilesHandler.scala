@@ -210,7 +210,8 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
   }
 
   private def sameFile(file: File, dbFile: DbFile): Boolean = {
-    dbFile.lastModified.toInstant == file.lastModifiedTime && dbFile.size == file.size
+    false
+//    dbFile.lastModified.toInstant == file.lastModifiedTime && dbFile.size == file.size
   }
 
   private def withSemaphore[A](a: => Result[A]): Result[A] = EitherT {

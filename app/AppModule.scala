@@ -12,6 +12,7 @@ import utils.AllowedWsApiOrigins
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.Duration
 
 class AppModule(environment: Environment, configuration: Configuration)
     extends ScalaModule
@@ -53,6 +54,8 @@ class AppModule(environment: Environment, configuration: Configuration)
     bind[Scheduler].toInstance(scheduler)
 
     bind[App].asEagerSingleton()
+
+    dao.resetProcessingFlags().value.runSyncUnsafe(Duration.Inf)
 
     // startup:
 

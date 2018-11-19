@@ -332,7 +332,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
 
   def markAsExecutedNow(backupSetId: Long): Result[Unit] = EitherT {
     Task {
-      logger.debug(s"Updating backed up set in last execution time DB")
+      logger.debug(s"Updating backed up set last execution time in DB")
 
       DB.autoCommit { implicit session =>
         sql"""update backup_sets set last_execution = now(), processing = false where id = ${backupSetId} """.update().apply()
@@ -348,7 +348,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
 
   def markAsProcessing(backupSetId: Long): Result[Unit] = EitherT {
     Task {
-      logger.debug(s"Updating backed up set in last execution time DB")
+      logger.debug(s"Updating backed up set processing flag in DB")
 
       DB.autoCommit { implicit session =>
         sql"""update backup_sets set processing = true where id = ${backupSetId} """.update().apply()
@@ -359,6 +359,22 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       .asyncBoundary
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Updating backup set processing flag", e))
+      }
+  }
+
+  def resetProcessingFlags(): Result[Unit] = EitherT {
+    Task {
+      logger.debug(s"Resetting backed up set processing flags in DB")
+
+      DB.autoCommit { implicit session =>
+        sql"""update backup_sets set processing = false """.update().apply()
+      }
+
+      Right(()): Either[AppException, Unit]
+    }.executeOn(sch)
+      .asyncBoundary
+      .onErrorRecover {
+        case NonFatal(e) => Left(DbException("Resetting backup set processing flags", e))
       }
   }
 

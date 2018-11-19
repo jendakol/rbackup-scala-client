@@ -44,7 +44,7 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
     out.get() match {
       case Some(o) =>
         try {
-          logger.debug(s"Sending WS heartbeat through $o")
+          logger.trace(s"Sending WS heartbeat through $o")
 
           o ! WsMessage("heartbeat", Json.Null).asJson.pretty(jsonPrinter)
         } catch {

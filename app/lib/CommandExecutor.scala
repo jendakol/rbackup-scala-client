@@ -97,8 +97,16 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       backedUpList
 
     case BackupSetsListCommand =>
-      dao.listAllBackupSets().map { bs =>
-        parseUnsafe(s"""{"success": true, "data": ${bs.asJson}}""")
+      dao.listAllBackupSets().map { bss =>
+        val sets = bss.map { bs =>
+          val lastTime = bs.lastExecution.map(DateTimeFormatter.format).getOrElse("never")
+          val nextTime = bs.lastExecution.map(_.plus(bs.frequency)).map(DateTimeFormatter.format).getOrElse("soon")
+
+          parseUnsafe(
+            s"""{ "id": ${bs.id}, "name":"${bs.name}", "processing": ${bs.processing}, "last_execution": "$lastTime", "next_execution": "$nextTime" }""")
+        }
+
+        parseUnsafe(s"""{"success": true, "data": [${sets.mkString(",")}]}""")
       }
 
     case BackupSetDetailsCommand(id) =>
@@ -120,7 +128,14 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       dirList(path)
 
     case BackupSetFilesUpdateCommand(id, files) =>
-      updateBackupSetFilesList(id, files).mapToJsonSuccess
+      for {
+        _ <- updateBackupSetFilesList(id, files)
+        currentFiles <- dao.listFilesInBackupSet(id)
+        _ <- wsApiController.send(
+          "backupSetDetailsUpdate",
+          parseUnsafe(s"""{ "id": $id, "type": "files", "files":${currentFiles.map(_.pathAsString).asJson}}""")
+        )
+      } yield JsonSuccess
 
   }
 

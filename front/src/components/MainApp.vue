@@ -228,6 +228,7 @@
                         }
                     }
                         break;
+
                     case "finishDownload": {
                         let resp = message.data;
 
@@ -235,6 +236,17 @@
                             this.$snotify.success(resp.path + " was successfully restored to " + resp.time + "!", {timeout: 5000})
                         } else {
                             this.$snotify.error("Download of " + resp.path + " was NOT successful, because: " + resp.reason, {timeout: 10000})
+                        }
+                    }
+                        break;
+
+                    case "backupFinish": {
+                        let resp = message.data;
+
+                        if (resp.success) {
+                            this.$snotify.success("Backup set " + resp.name + " was successfully finished!", {timeout: 5000})
+                        } else {
+                            this.$snotify.error("Backup set " + resp.name + " failed, reason:" + resp.reason, {timeout: 10000})
                         }
                     }
                         break;

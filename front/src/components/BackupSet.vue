@@ -1,9 +1,17 @@
 <template>
     <div>
-        BACKUP SET
-        {{ this.backupSet }}
-        {{ this.backupSetFiles }}
-        <v-btn color="success" @click="runBackup">Run now</v-btn>
+        <div>{{this.backupSet.name}}</div>
+        <div>{{ this.backupSetFiles }}</div>
+
+        <div>Last executed: {{this.backupSet.last_execution}}</div>
+        <div>Next execution: {{this.backupSet.next_execution}}</div>
+
+
+        <v-btn v-if="this.backupSet.processing === false" color="success" @click="runBackup">Run now</v-btn>
+        <div v-else>
+            Backup running
+        </div>
+
         <v-container fluid fill-height>
 
             <v-jstree :data="fileTreeData" :async="loadData" show-checkbox multiple allow-batch
@@ -12,7 +20,8 @@
         </v-container>
 
         <BottomBar>
-            <v-btn @click="saveBackupSelection" color="success">Save</v-btn>
+            <v-btn v-if="this.backupSet.processing === false" @click="saveBackupSelection" color="success">Save</v-btn>
+            <v-btn v-else @click="saveBackupSelection" color="success" disabled>Save</v-btn>
         </BottomBar>
     </div>
 </template>
@@ -77,6 +86,31 @@
                 this.ajax("backupSetFiles", {id: this.backupSet.id, files: this.fileTreeData})
             },
             receiveWs(message) {
+                switch (message.type) {
+                    case "backupSetUpdate": {
+                        if (message.data.id === this.backupSet.id) {
+                            this.backupSet = message.data
+                        }
+                    }
+                        break;
+                    case "backupSetDetailsUpdate": {
+                        if (message.data.id === this.backupSet.id) {
+                            switch (message.data.type) {
+                                case "files" : {
+                                    this.backupSetFiles = message.data.files
+                                }
+                                    break;
+                                case "processing" : {
+                                    this.backupSet.processing = message.data.processing;
+                                    this.backupSet.last_execution = message.data.last_execution;
+                                    this.backupSet.next_execution = message.data.next_execution;
+                                }
+                                    break;
+                            }
+                        }
+                    }
+                        break;
+                }
             },
             selectTreeNode(path) {
                 return JSPath.apply("..{.value === '" + path + "'}", this.fileTreeData)[0]
