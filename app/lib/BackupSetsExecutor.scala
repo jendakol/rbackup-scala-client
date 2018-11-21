@@ -4,6 +4,7 @@ import com.typesafe.scalalogging.StrictLogging
 import controllers.WsApiController
 import javax.inject.Inject
 import lib.App.{parseUnsafe, _}
+import lib.AppException.MultipleFailuresException
 import monix.execution.{Cancelable, Scheduler}
 
 import scala.concurrent.duration._
@@ -30,25 +31,12 @@ class BackupSetsExecutor @Inject()(dao: Dao,
   private def executeWaitingBackupSets()(implicit session: ServerSession): Unit = {
     (for {
       sets <- dao.listBackupSetsToExecute()
-      allResult <- sets.map(execute).sequentially
+      _ <- sets.map(execute).sequentially
     } yield {
-      (sets zip allResult).toMap
+      sets
     }).runAsync {
-      case Right(setsWithResults) =>
-        val (failures, _) = setsWithResults.collectPartition {
-          case (_, Right(_)) => Right(())
-          case (set, Left(ex)) => Left(set -> ex)
-        }
-
-        if (failures.nonEmpty) {
-          failures.foreach {
-            case (set, ex) =>
-              logger.warn(s"Backup set '${set.name}' failed", ex)
-          }
-        } else {
-          logger.info(s"All backup sets were processes successfully (${setsWithResults.keys.map(_.name)})")
-        }
-
+      case Right(sets) => logger.info(s"All backup sets were processes successfully (${sets.map(_.name)})")
+      case Left(ex: MultipleFailuresException) => logger.warn(s"Execution of backup sets failed:\n${ex.causes.mkString("\n")}", ex)
       case Left(ex: AppException) => logger.warn("Execution of backup sets failed", ex)
       case Left(ex) => logger.error("Execution of backup sets failed", ex)
     }
@@ -83,11 +71,18 @@ class BackupSetsExecutor @Inject()(dao: Dao,
             parseUnsafe(s"""{ "success": true, "name": "${bs.name}"}""")
           )
         } yield {}).recoverWith {
+          case ex: MultipleFailuresException =>
+            logger.warn(s"Execution of backup set failed:\n${ex.causes.mkString("\n")}", ex)
+            wsApiController.send(
+              "backupFinish",
+              parseUnsafe(s"""{ "success": false, "name": "${bs.name}", "reason": "Multiple failures"}""")
+            )
+
           case e =>
             logger.debug(s"Backup set execution failed ($bs)", e)
             wsApiController.send(
               "backupFinish",
-              parseUnsafe(s"""{ "success": true, "name": "${bs.name}"}""")
+              parseUnsafe(s"""{ "success": false, "name": "${bs.name}", "reason": "Multiple failures"}""")
             )
         }
       }

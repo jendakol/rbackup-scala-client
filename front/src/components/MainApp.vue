@@ -60,6 +60,9 @@
 
                             <Restore v-if="visiblePage === 'restore'" :ajax="this.ajax" :registerWsListener="this.addWsListener"
                                      :asyncActionWithNotification="this.asyncActionWithNotification"/>
+
+                            <Settings v-if="visiblePage === 'settings'" :ajax="this.ajax" :registerWsListener="this.addWsListener"
+                                     :asyncActionWithNotification="this.asyncActionWithNotification"/>
                         </p>
                         <p v-else>
                             Waiting for connection to the server...<br>
@@ -82,6 +85,7 @@
     import Backup from '../components/Backup.vue';
     import BackupManual from '../components/BackupManual.vue';
     import Restore from '../components/Restore.vue';
+    import Settings from '../components/Settings.vue';
 
     export default {
         name: "MainApp",
@@ -90,7 +94,8 @@
             Status,
             Backup,
             BackupManual,
-            Restore
+            Restore,
+            Settings
         },
         props: {
             hostUrl: String,
@@ -127,6 +132,12 @@
                     {
                         title: 'Restore', icon: 'cloud_download', action: () => {
                             this.visiblePage = "restore";
+                            this.sendPageInitEvent();
+                        }
+                    },
+                    {
+                        title: 'Settings', icon: 'settings', action: () => {
+                            this.visiblePage = "settings";
                             this.sendPageInitEvent();
                         }
                     }

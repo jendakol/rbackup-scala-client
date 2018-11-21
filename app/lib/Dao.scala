@@ -94,7 +94,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
 
       val fileSize = lastVersion.size
 
-      val mtime = lastVersion.created
+      val mtime = lastVersion.created // TODO this it not mtime!!!
       val path = remoteFile.originalName
       val remoteFileJson = remoteFile.asJson.noSpaces
 

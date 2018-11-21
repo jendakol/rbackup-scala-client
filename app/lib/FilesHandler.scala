@@ -97,13 +97,13 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
     if (file.isDirectory) {
       uploadDir(file)
     } else {
-      checkFileUpdated(file).flatMap {
+      shouldUpload(file).flatMap {
         case false =>
           logger.debug(s"File $file was not updated, will NOT be uploaded")
           pureResult(List(None))
 
         case true =>
-          logger.debug(s"File $file updated, will be uploaded")
+          logger.debug(s"File $file updated (or settings override that), will be uploaded")
 
           withSemaphore {
             logger.debug(s"Uploading ${transferringCnt.incrementAndGet()} files now")
@@ -193,6 +193,17 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
     }
   }
 
+  private def shouldUpload(file: File): Result[Boolean] = {
+    checkFileUpdated(file)
+      .flatMap {
+        case false =>
+          logger.debug(s"File $file not updated, is 'upload_same_content' turned on?")
+          settings.uploadSameContent
+
+        case true => pureResult(true)
+      }
+  }
+
   private def checkFileUpdated(file: File): Result[Boolean] = {
     dao.getFile(file).map {
       case Some(dbFile) if sameFile(file, dbFile) =>
@@ -210,8 +221,8 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
   }
 
   private def sameFile(file: File, dbFile: DbFile): Boolean = {
-    false
-//    dbFile.lastModified.toInstant == file.lastModifiedTime && dbFile.size == file.size
+    logger.debug(s"Is it same file - ${file.lastModifiedTime} vs. ${dbFile.lastModified}")
+    dbFile.lastModified.toInstant == file.lastModifiedTime && dbFile.size == file.size
   }
 
   private def withSemaphore[A](a: => Result[A]): Result[A] = EitherT {

@@ -27,6 +27,8 @@ object Command {
     case "upload" => data.flatMap(_.as[UploadCommand].toOption)
     case "download" => data.flatMap(_.as[DownloadCommand].toOption)
     case "cancelTask" => data.flatMap(_.as[CancelTaskCommand].toOption)
+    case "settingsLoad" => Some(LoadSettingsCommand)
+    case "settingsSave" => data.flatMap(_.as[SaveSettingsCommand].toOption)
     case _ => None
   }
 }
@@ -58,6 +60,10 @@ case class UploadCommand(path: String) extends Command
 case class DownloadCommand(path: String, versionId: Long) extends Command
 
 case class CancelTaskCommand(id: UUID) extends Command
+
+case object LoadSettingsCommand extends Command
+
+case class SaveSettingsCommand(settings: Map[String, String]) extends Command
 
 object RegisterCommand {
   def toResponse(resp: RegistrationResponse): Json = {

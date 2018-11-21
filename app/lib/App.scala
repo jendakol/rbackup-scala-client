@@ -5,6 +5,7 @@ import cats.syntax.either._
 import com.avast.metrics.scalaapi.Timer
 import io.circe.Json
 import javax.inject.{Inject, Singleton}
+import lib.AppException.MultipleFailuresException
 import monix.eval.Task
 import monix.execution.{Cancelable, Scheduler}
 import org.http4s.Uri
@@ -112,12 +113,24 @@ object App {
   }
 
   implicit class ResultSeqOps[A](val rs: Seq[Result[A]]) extends AnyVal {
-    def sequentially: Result[Seq[Either[AppException, A]]] = EitherT.right {
-      Task.sequence(rs.map(_.value))
+    def sequentially: Result[Seq[A]] = EitherT {
+      Task.sequence(rs.map(_.value)).map(_.collectPartition).map {
+        case (failures, results) =>
+          if (failures.nonEmpty) Left(MultipleFailuresException(failures): AppException) else Right(results)
+      }
     }
 
-    def inparallel: Result[List[Either[AppException, A]]] = EitherT.right {
-      Task.gatherUnordered(rs.map(_.value))
+    def inparallel: Result[List[A]] = EitherT {
+      Task
+        .gatherUnordered(rs.map(_.value))
+        .map(_.collectPartition {
+          case Right(value) => Right(value)
+          case Left(value) => Left(value)
+        })
+        .map {
+          case (failures, results) =>
+            if (failures.nonEmpty) Left(MultipleFailuresException(failures): AppException) else Right(results)
+        }
     }
   }
 

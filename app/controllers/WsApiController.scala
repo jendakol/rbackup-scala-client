@@ -79,7 +79,7 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
         out.get() match {
           case Some(o) =>
             Try {
-              logger.debug(s"Sending WS message through $o: $wsMessage")
+              logger.trace(s"Sending WS message through $o: $wsMessage")
 
               o ! wsMessage.asJson.pretty(jsonPrinter)
             }.toEither

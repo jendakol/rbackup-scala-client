@@ -137,6 +137,15 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
         )
       } yield JsonSuccess
 
+    case LoadSettingsCommand =>
+      settings.getList.map { map =>
+        parseUnsafe(s"""{"success": true, "data": ${map.asJson} }""")
+      }
+
+    case SaveSettingsCommand(setts) =>
+      logger.debug("Updated settings: " + setts)
+
+      settings.saveList(setts).mapToJsonSuccess
   }
 
   private def dirList(path: String): Result[Json] = {

@@ -25,4 +25,6 @@ object AppException {
 
   case class LoginRequired(cause: Throwable = null) extends AppException(s"Required login to proceed", cause)
 
+  case class MultipleFailuresException(causes: Iterable[AppException]) extends AppException("Multiple failures")
+
 }
