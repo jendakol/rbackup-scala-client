@@ -3,8 +3,10 @@ import java.util.concurrent.Executors
 import com.avast.metrics.scalaapi.Monitor
 import com.typesafe.scalalogging.StrictLogging
 import lib._
+import lib.db.{Dao, DbScheme}
+import lib.server.CloudConnector
+import lib.settings.Settings
 import monix.execution.Scheduler
-import monix.execution.schedulers.SchedulerService
 import net.codingwell.scalaguice.ScalaModule
 import play.api.{Configuration, Environment}
 import scalikejdbc._
@@ -12,6 +14,8 @@ import scalikejdbc.config.DBs
 import utils.AllowedWsApiOrigins
 
 import scala.collection.JavaConverters._
+import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.Duration
 
 class AppModule(environment: Environment, configuration: Configuration)
     extends ScalaModule
@@ -29,9 +33,12 @@ class AppModule(environment: Environment, configuration: Configuration)
     bindConfig(config.root(), "")(binder())
 
     val executorService = Executors.newCachedThreadPool()
-    implicit val scheduler: SchedulerService = Scheduler(executorService) // TODO
+    implicit val scheduler: Scheduler = Scheduler(
+      executor = Executors.newScheduledThreadPool(4),
+      ec = ExecutionContext.fromExecutorService(executorService)
+    )
 
-    val rootMonitor = Monitor.noOp()
+    val rootMonitor = Monitor.noOp() // TODO
 
     bind[AllowedWsApiOrigins].toInstance(AllowedWsApiOrigins(config.getStringList("allowedWsApiOrigins").asScala))
 
@@ -48,6 +55,10 @@ class AppModule(environment: Environment, configuration: Configuration)
     bind[Monitor].annotatedWithName("FilesHandler").toInstance(rootMonitor.named("fileshandler"))
 
     bind[Scheduler].toInstance(scheduler)
+
+    bind[App].asEagerSingleton()
+
+    dao.resetProcessingFlags().value.runSyncUnsafe(Duration.Inf)
 
     // startup:
 

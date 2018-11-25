@@ -1,3 +1,5 @@
+package utils
+
 import lib.App.Result
 import monix.eval.Task
 import monix.execution.Scheduler

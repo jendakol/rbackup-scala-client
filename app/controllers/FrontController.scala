@@ -1,7 +1,7 @@
 package controllers
 
 import com.google.inject.Inject
-import lib.WebpackBuildFile
+import lib.client.WebpackBuildFile
 import play.Environment
 import play.api.mvc._
 import utils.ConfigProperty

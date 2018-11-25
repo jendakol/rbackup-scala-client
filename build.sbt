@@ -1,7 +1,4 @@
-import java.io.{File, FileOutputStream}
-
 import com.typesafe.sbt.packager.MappingsHelper._
-import sbtassembly.MergeStrategy
 
 import scala.sys.process.Process
 

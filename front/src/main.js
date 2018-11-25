@@ -3,6 +3,7 @@ import App from './components/App.vue';
 import Vuetify from 'vuetify'
 import '../sass/style.scss';
 import Snotify, { SnotifyPosition } from 'vue-snotify/vue-snotify.min.js'
+import Datetime from 'vue-datetime'
 
 const options = {
     toast: {
@@ -15,7 +16,9 @@ const options = {
 };
 
 Vue.use(Snotify, options);
+Vue.use(Datetime, options);
 
+import 'vue-datetime/dist/vue-datetime.css'
 import 'vuetify/dist/vuetify.min.css'
 Vue.use(Vuetify, {
     theme: {

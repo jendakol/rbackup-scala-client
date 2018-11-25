@@ -15,7 +15,7 @@ import javax.inject._
 import lib.App
 import lib.App._
 import lib.AppException.{ParsingFailure, WsException}
-import lib.CirceImplicits._
+import utils.CirceImplicits._
 import monix.eval.Task
 import monix.execution.Scheduler
 import play.api.libs.circe.Circe
@@ -24,6 +24,7 @@ import play.api.mvc._
 import utils.AllowedWsApiOrigins
 
 import scala.concurrent.Future
+import scala.concurrent.duration._
 import scala.util.Try
 import scala.util.control.NonFatal
 
@@ -38,6 +39,21 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
     with StrictLogging {
 
   private var eventsCallback: Option[Event => App.Result[Unit]] = None
+
+  sch.scheduleAtFixedRate(0.seconds, 1.second) {
+    out.get() match {
+      case Some(o) =>
+        try {
+          logger.trace(s"Sending WS heartbeat through $o")
+
+          o ! WsMessage("heartbeat", Json.Null).asJson.pretty(jsonPrinter)
+        } catch {
+          case NonFatal(e) => logger.warn("Could not send WS message", e)
+        }
+
+      case None => logger.debug("Could not send WS message - connection not available")
+    }
+  }
 
   def socket: WebSocket = WebSocket.acceptOrResult[String, String] {
     case rh if sameOriginCheck(rh) =>
@@ -63,7 +79,7 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
         out.get() match {
           case Some(o) =>
             Try {
-              logger.debug(s"Sending WS message through $o: $wsMessage")
+              logger.trace(s"Sending WS message through $o: $wsMessage")
 
               o ! wsMessage.asJson.pretty(jsonPrinter)
             }.toEither
@@ -87,9 +103,6 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
         logger.debug(s"Received WS message: $content")
         // TODO
 
-        logger.info(s"Updating WS channel to $out")
-        WsApiController.out.set(Option(out))
-
         eventsCallback.foreach { callback =>
           EitherT(
             Task[Either[io.circe.Error, Event]](
@@ -98,7 +111,13 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
                 cursor = json.hcursor
                 eventType <- cursor.get[String]("type")
                 event <- eventType match {
-                  case "init" => cursor.get[InitEvent]("data")
+                  case "init" =>
+                    logger.info(s"Updating WS channel to $out")
+                    WsApiController.out.set(Some(out))
+                    Right(InitEvent)
+
+                  case "page-init" =>
+                    cursor.get[PageInitEvent]("data")
                 }
               } yield {
                 event
@@ -126,4 +145,5 @@ case class WsMessage(`type`: String, data: Json)
 
 sealed trait Event
 
-case class InitEvent(page: String) extends Event
+case object InitEvent extends Event
+case class PageInitEvent(page: String) extends Event

@@ -1,4 +1,4 @@
-package lib
+package lib.commands
 
 import better.files.File
 import cats.data.EitherT
@@ -12,11 +12,16 @@ import io.circe.syntax._
 import javax.inject.{Inject, Singleton}
 import lib.App._
 import lib.AppException.LoginRequired
-import lib.clientapi.{FileTree, FileTreeNode}
-import lib.serverapi._
+import lib._
+import lib.client.clientapi.{BackupSetNode, FileTree, FileTreeNode}
+import lib.db.Dao
+import lib.server.serverapi._
+import lib.server.{CloudConnector, CloudFilesRegistry}
+import lib.settings.Settings
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.http4s.Uri
+import utils.CirceImplicits._
 import utils.ConfigProperty
 
 @Singleton
@@ -26,6 +31,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
                                 tasksManager: TasksManager,
                                 wsApiController: WsApiController,
                                 dao: Dao,
+                                backupSetsExecutor: BackupSetsExecutor,
                                 settings: Settings,
                                 stateManager: StateManager,
                                 @ConfigProperty("deviceId") deviceId: String)(implicit scheduler: Scheduler)
@@ -40,7 +46,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
 
         import scala.concurrent.duration._
 
-        tasksManager.start(RunningTask.FileUpload("theName"), EitherT.right(Task.unit.delayResult(10.seconds))) >>
+        tasksManager.start(RunningTask.FileUpload("theName"))(EitherT.right(Task.unit.delayResult(10.seconds))) >>
           cloudConnector.status
             .flatMap { str =>
               parse(s"""{"serverResponse": "$str"}""").toResult
@@ -67,7 +73,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       login(host, username, password)
 
     case LogoutCommand =>
-      settings.session(None).map(_ => parseUnsafe("""{ "success": true }"""))
+      settings.session(None).mapToJsonSuccess
 
     case CancelTaskCommand(id) =>
       tasksManager.cancel(id).map {
@@ -92,65 +98,113 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       }
 
     case BackedUpFileListCommand =>
-      dao.listAllFiles.map { files =>
-        val fileTrees = FileTree.fromRemoteFiles(files.map(_.remoteFile))
+      backedUpList
 
-        logger.debug(s"Backed-up file trees: $fileTrees")
+    case BackupSetsListCommand =>
+      dao.listAllBackupSets().map { bss =>
+        val sets = bss.map { bs =>
+          val lastTime = bs.lastExecution.map(DateTimeFormatter.format).getOrElse("never")
+          val nextTime = bs.lastExecution.map(_.plus(bs.frequency)).map(DateTimeFormatter.format).getOrElse("soon")
 
-        val nonEmptyTrees = fileTrees.filterNot(_.isEmpty)
+          parseUnsafe(
+            s"""{ "id": ${bs.id}, "name":"${bs.name}", "processing": ${bs.processing}, "last_execution": "$lastTime", "next_execution": "$nextTime" }""")
+        }
 
-        if (nonEmptyTrees.nonEmpty) {
-          logger.trace {
-            val allFiles = nonEmptyTrees
-              .collect {
-                case ft @ FileTree(_, Some(_)) => ft.allFiles
-                case _ => None
-              }
-              .flatten
-              .flatMap(_.toList)
+        parseUnsafe(s"""{"success": true, "data": [${sets.mkString(",")}]}""")
+      }
 
-            s"Returning list of ${allFiles.length} backed-up files"
-          }
+    case BackupSetDetailsCommand(id) =>
+      dao.listFilesInBackupSet(id).map { files =>
+        parseUnsafe(s"""{"success": true, "data": {"files": ${files.map(_.pathAsString).asJson}}}""")
+      }
 
-          nonEmptyTrees.map(_.toJson).asJson
-        } else {
-          logger.debug("Returning empty list of backed-up files")
-          parseUnsafe {
-            s"""[{"icon": "fas fa-info-circle", "isLeaf": true, "opened": false, "value": "_", "text": "No backed-up files yet", "isFile": false, "isVersion": false, "isDir": false}]"""
-          }
+    case BackupSetExecuteCommand(id) =>
+      withSession { implicit session =>
+        for {
+          bs <- dao.getBackupSet(id)
+          _ <- backupSetsExecutor.execute(bs.getOrElse(throw new IllegalArgumentException("Backup set not found"))) // TODO
+        } yield {
+          JsonSuccess
         }
       }
 
     case DirListCommand(path) =>
-      val nodes = if (path != "") {
-        File(path).children
-          .filter(_.isReadable)
-          .map { file =>
-            if (file.isRegularFile) {
-              FileTreeNode.RegularFile(file, None)
-            } else {
-              FileTreeNode.Directory(file)
-            }
+      dirList(path)
+
+    case BackupSetFilesUpdateCommand(id, files) =>
+      for {
+        _ <- updateBackupSetFilesList(id, files)
+        currentFiles <- dao.listFilesInBackupSet(id)
+        _ <- wsApiController.send(
+          "backupSetDetailsUpdate",
+          parseUnsafe(s"""{ "id": $id, "type": "files", "files":${currentFiles.map(_.pathAsString).asJson}}""")
+        )
+      } yield JsonSuccess
+
+    case LoadSettingsCommand =>
+      settings.getList.map { map =>
+        parseUnsafe(s"""{"success": true, "data": ${map.asJson} }""")
+      }
+
+    case SaveSettingsCommand(setts) =>
+      logger.debug("Updated settings: " + setts)
+
+      settings.saveList(setts).mapToJsonSuccess
+  }
+
+  private def dirList(path: String): Result[Json] = {
+    val nodes = if (path != "") {
+      File(path).children
+        .filter(_.isReadable)
+        .map { file =>
+          if (file.isRegularFile) {
+            FileTreeNode.RegularFile(file, None)
+          } else {
+            FileTreeNode.Directory(file)
           }
-          .toSeq
+        }
+        .toSeq
+    } else {
+      File.roots
+        .filter(_.isReadable)
+        .map(FileTreeNode.Directory(_))
+        .toSeq
+    }
+
+    pureResult {
+      nodes.map(_.toJson).asJson
+    }
+  }
+
+  private def backedUpList: EitherT[Task, AppException, Json] = {
+    dao.listAllFiles.map { files =>
+      val fileTrees = FileTree.fromRemoteFiles(files.map(_.remoteFile))
+
+      logger.debug(s"Backed-up file trees: $fileTrees")
+
+      val nonEmptyTrees = fileTrees.filterNot(_.isEmpty)
+
+      if (nonEmptyTrees.nonEmpty) {
+        logger.trace {
+          val allFiles = nonEmptyTrees
+            .collect {
+              case ft @ FileTree(_, Some(_)) => ft.allFiles
+              case _ => None
+            }
+            .flatten
+            .flatMap(_.toList)
+
+          s"Returning list of ${allFiles.length} backed-up files"
+        }
+
+        nonEmptyTrees.map(_.toJson).asJson
       } else {
-        File.roots
-          .filter(_.isReadable)
-          .map(FileTreeNode.Directory(_))
-          .toSeq
+        logger.debug("Returning empty list of backed-up files")
+        parseUnsafe {
+          s"""[{"icon": "fas fa-info-circle", "isLeaf": true, "opened": false, "value": "_", "text": "No backed-up files yet", "isFile": false, "isVersion": false, "isDir": false}]"""
+        }
       }
-
-      pureResult {
-        nodes.map(_.toJson).asJson
-      }
-
-    //    case SaveFileTreeCommand(files) =>
-    ////            logger.debug(better.files.head.flatten.mkString("", "\n", ""))
-    //
-    //      pureResult {
-    //        Json.Null
-    //      }
-
+    }
   }
 
   private def login(host: String, username: String, password: String): Result[Json] = {
@@ -162,10 +216,12 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
         cloudConnector.login(uri, deviceId, username, password).flatMap {
           case LoginResponse.SessionCreated(sessionId) =>
             logger.info("Session on backend created")
-            stateManager.login(sessionId).map(_ => parseUnsafe("""{ "success": true }"""))
+            stateManager.login(sessionId).mapToJsonSuccess
+
           case LoginResponse.SessionRecovered(sessionId) =>
             logger.info("Session on backend restored")
-            stateManager.login(sessionId).map(_ => parseUnsafe("""{ "success": true }"""))
+            stateManager.login(sessionId).mapToJsonSuccess
+
           case LoginResponse.Failed =>
             pureResult(parseUnsafe("""{ "success": false }"""))
         }
@@ -173,7 +229,9 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
   }
 
   private def processEvent(event: Event): Result[Unit] = event match {
-    case InitEvent(page) =>
+    case InitEvent => pureResult(())
+
+    case PageInitEvent(page) =>
       page match {
         case "status" => tasksManager.notifyUi()
         case _ => pureResult(())
@@ -181,16 +239,17 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
   }
 
   private def uploadManually(file: File)(implicit ss: ServerSession): Result[Json] = {
-    def reportResult(results: List[UploadResponse]): Result[Unit] = {
+    def reportResult(results: List[Option[UploadResponse]]): Result[Unit] = {
       val respJson = if (results.size == 1) {
         results.head match {
-          case UploadResponse.Uploaded(_) => parseUnsafe(s"""{ "success": true, "path": ${file.pathAsString.asJson} }""")
-          case UploadResponse.Sha256Mismatch =>
-            parseUnsafe(s"""{ "success": false,, "path": ${file.pathAsString.asJson} "reason": "SHA-256 mismatch" }""")
+          case None => parseUnsafe(s"""{ "success": true, "path": ${file.pathAsString.asJson} }""")
+          case Some(UploadResponse.Uploaded(_)) => parseUnsafe(s"""{ "success": true, "path": ${file.pathAsString.asJson} }""")
+          case Some(UploadResponse.Sha256Mismatch) =>
+            parseUnsafe(s"""{ "success": false, "path": ${file.pathAsString.asJson} "reason": "SHA-256 mismatch" }""")
         }
       } else {
         val failures = results.collect {
-          case UploadResponse.Sha256Mismatch => "Could not upload file" // TODO this is sad
+          case Some(UploadResponse.Sha256Mismatch) => "Could not upload file" // TODO this is sad
         }
 
         if (failures.nonEmpty) {
@@ -203,12 +262,6 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       wsApiController.send("finishUpload", respJson)
     }
 
-    val uploadTask: Result[Unit] = for {
-      results <- filesHandler.uploadNow(file)
-      _ <- filesRegistry.reportBackedUpFilesList
-      _ <- reportResult(results)
-    } yield ()
-
     val runningTask = if (file.isDirectory) {
       RunningTask.DirUpload(file.pathAsString)
     } else {
@@ -216,10 +269,20 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
     }
 
     tasksManager
-      .start(runningTask, uploadTask)
-      .map { _ =>
-        parseUnsafe("""{ "success": true }""")
+      .start(runningTask) {
+        for {
+          results <- filesHandler.upload(file)
+          _ <- filesRegistry.reportBackedUpFilesList
+          _ <- reportResult(results)
+        } yield ()
       }
+      .mapToJsonSuccess
+  }
+
+  private def updateBackupSetFilesList(bsId: Long, files: Seq[BackupSetNode]): Result[Unit] = {
+    val normalized = files.flatMap(_.flattenNormalize)
+
+    dao.updateFilesInBackupSet(bsId, normalized.map(n => File(n.value)))
   }
 
   /*
@@ -281,13 +344,9 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
           })
       }
 
-    val runningTask = RunningTask.FileDownload(file.pathAsString)
-
     tasksManager
-      .start(runningTask, downloadTask)
-      .map { _ =>
-        parseUnsafe("""{ "success": true }""")
-      }
+      .start(RunningTask.FileDownload(file.pathAsString))(downloadTask)
+      .mapToJsonSuccess
   }
 
   private def withSession[A](f: ServerSession => Result[A]): Result[A] = {

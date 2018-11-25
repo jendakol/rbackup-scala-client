@@ -3,12 +3,34 @@ package lib
 import cats.data.EitherT
 import cats.syntax.either._
 import com.avast.metrics.scalaapi.Timer
+import com.typesafe.scalalogging.StrictLogging
 import io.circe.Json
+import javax.inject.{Inject, Singleton}
+import lib.AppException.MultipleFailuresException
 import monix.eval.Task
-import monix.execution.Scheduler
+import monix.execution.{Cancelable, Scheduler}
 import org.http4s.Uri
+import play.api.inject.ApplicationLifecycle
 
+import scala.collection.generic.CanBuildFrom
 import scala.concurrent.Future
+import scala.language.higherKinds
+
+@Singleton
+class App @Inject()(backupSetsExecutor: BackupSetsExecutor)(lifecycle: ApplicationLifecycle)(implicit sch: Scheduler)
+    extends StrictLogging {
+
+  lifecycle.addStopHook { () =>
+    stop.runAsync
+  }
+
+  private val bse: Cancelable = backupSetsExecutor.start
+
+  def stop: Task[Unit] = Task {
+    logger.info("Shutting down app")
+    bse.cancel()
+  }
+}
 
 object App {
   type Result[A] = EitherT[Task, AppException, A]
@@ -23,6 +45,8 @@ object App {
 
   def parseUnsafe(str: String): Json = io.circe.parser.parse(str).getOrElse(throw new RuntimeException(s"BUG :-( - could not parse\n$str"))
 
+  final val JsonSuccess: Json = parseUnsafe("""{ "success": true }""")
+
   final val DateTimeFormatter = java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm:ss")
 
   implicit class CirceOps[A](val e: Either[io.circe.Error, A]) {
@@ -30,6 +54,8 @@ object App {
   }
 
   implicit class ResultOps[A](val r: Result[A]) extends AnyVal {
+
+    def mapToJsonSuccess: Result[Json] = r.map(_ => JsonSuccess)
 
     /** Adds asynchronous callback to the `Result` and returns new `Result` which contains the callback. Has to be part of the chain.
       */
@@ -89,8 +115,62 @@ object App {
     }
   }
 
+  implicit class ResultSeqOps[A](val rs: Seq[Result[A]]) extends AnyVal {
+    def sequentially: Result[Seq[A]] = EitherT {
+      Task.sequence(rs.map(_.value)).map(_.collectPartition).map {
+        case (failures, results) =>
+          if (failures.nonEmpty) Left(MultipleFailuresException(failures): AppException) else Right(results)
+      }
+    }
+
+    def inparallel: Result[List[A]] = EitherT {
+      Task
+        .gatherUnordered(rs.map(_.value))
+        .map(_.collectPartition {
+          case Right(value) => Right(value)
+          case Left(value) => Left(value)
+        })
+        .map {
+          case (failures, results) =>
+            if (failures.nonEmpty) Left(MultipleFailuresException(failures): AppException) else Right(results)
+        }
+    }
+  }
+
+  implicit class TraversableOnceHelper[A, Coll[X] <: TraversableOnce[X]](val repr: Coll[A]) extends AnyVal {
+
+    def collectPartition[B, C](implicit ev: A <:< Either[B, C],
+                               bfLeft: CanBuildFrom[Coll[Either[B, C]], B, Coll[B]],
+                               bfRight: CanBuildFrom[Coll[Either[B, C]], C, Coll[C]]): (Coll[B], Coll[C]) = {
+
+      repr
+        .asInstanceOf[Coll[Either[B, C]]]
+        .collectPartition {
+          case Right(v) => Right(v)
+          case Left(v) => Left(v)
+        }
+    }
+
+    def collectPartition[B, C](f: PartialFunction[A, Either[B, C]])(implicit bfLeft: CanBuildFrom[Coll[A], B, Coll[B]],
+                                                                    bfRight: CanBuildFrom[Coll[A], C, Coll[C]]): (Coll[B], Coll[C]) = {
+      val left = bfLeft(repr)
+      val right = bfRight(repr)
+
+      repr.foreach { e =>
+        if (f.isDefinedAt(e)) {
+          f(e) match {
+            case Left(next) => left += next
+            case Right(next) => right += next
+          }
+        }
+      }
+
+      left.result -> right.result
+    }
+  }
+
   implicit class StringOps(val s: String) extends AnyVal {
-    def fixPath: String = s.replace('\\', '/')replace('\\', '/')
+    def fixPath: String = s.replace('\\', '/').replace('\\', '/')
   }
 
 }

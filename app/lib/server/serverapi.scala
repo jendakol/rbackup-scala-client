@@ -1,9 +1,11 @@
-package lib
+package lib.server
 
 import java.time.ZonedDateTime
 
 import better.files.File
 import cats.data.NonEmptyList
+import lib.{DeviceId, ServerSession}
+import utils.Sha256
 
 // https://jendakol.github.io/rbackup/server.html
 object serverapi {

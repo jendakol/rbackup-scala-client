@@ -10,7 +10,7 @@ workers = 20
 tls = { enabled = false }
 
 [database]
-host = "database"
+host = "mysql"
 port = "3306"
 user = "root"
 pass = "rbackup"

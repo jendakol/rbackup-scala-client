@@ -1,18 +1,21 @@
-package lib
+package lib.client
 
+import java.nio.file.Paths
 import java.time.ZoneId
 
 import better.files.File
 import cats.data.NonEmptyList
 import cats.instances.string._
 import com.typesafe.scalalogging.StrictLogging
-import io.circe.Json
-import io.circe.generic.extras.auto._
+import io.circe.generic.extras.Configuration
 import io.circe.syntax._
+import io.circe.{Decoder, Json}
+import lib.App
 import lib.App._
 import lib.App.StringOps
-import lib.clientapi.FileTreeNode.{Directory, RegularFile}
-import lib.serverapi.RemoteFile
+import lib.client.clientapi.FileTreeNode.{Directory, RegularFile}
+import lib.server.serverapi
+import lib.server.serverapi.{RemoteFile, RemoteFileVersion}
 import org.http4s.Uri
 
 object clientapi extends StrictLogging {
@@ -221,7 +224,7 @@ object clientapi extends StrictLogging {
   }
 
   object Version {
-    def apply(path: String, fileVersion: lib.serverapi.RemoteFileVersion): Version = new Version(
+    def apply(path: String, fileVersion: RemoteFileVersion): Version = new Version(
       value = fileVersion.version.toString,
       text = App.DateTimeFormatter.format(fileVersion.created.withZoneSameInstant(ZoneId.systemDefault())),
       path = path,
@@ -252,11 +255,11 @@ object clientapi extends StrictLogging {
     object Directory {
       def apply(file: File): Directory = {
         val absolutePath = file.path.toAbsolutePath.toString
-        val n = absolutePath.fixPath.split("/").last
+        val n = absolutePath.fixPath.split("/").lastOption
 
         new Directory(
           absolutePath,
-          if (n != "") n else "/",
+          n.map(p => if (p != "") p else "/").getOrElse("/"),
           None
         )
       }
@@ -284,6 +287,47 @@ object clientapi extends StrictLogging {
       }
     }
 
+  }
+
+  case class BackupSetNode(selected: Boolean,
+                           loading: Boolean,
+                           value: String,
+                           text: String,
+                           isLeaf: Boolean = false,
+                           isFile: Boolean = false,
+                           isDir: Boolean = false,
+                           children: Seq[BackupSetNode],
+                           icon: String) {
+    def flatten: Seq[BackupSetNode] = {
+      (this +: children.flatMap(_.flatten)).filterNot(_.loading)
+    }
+
+    def toIterable: Iterable[BackupSetNode] = new Iterable[BackupSetNode] {
+      override def iterator: Iterator[BackupSetNode] = BackupSetNode.this.flatten.iterator
+    }
+
+    def flattenNormalize: Seq[BackupSetNode] = {
+      val map = flatten.filter(_.selected).map(n => Paths.get(n.value) -> n).sortBy(_._1).toMap
+
+      val keys = map.keySet
+
+      map
+        .filterKeys { path =>
+          !keys.exists(p => p != path && path.startsWith(p))
+        }
+        .values
+        .toSeq
+    }
+
+  }
+
+  object BackupSetNode {
+
+    import io.circe.generic.extras.semiauto._
+
+    implicit val customConfig: Configuration = Configuration.default.withDefaults
+
+    implicit val decoder: Decoder[BackupSetNode] = deriveDecoder
   }
 
 }

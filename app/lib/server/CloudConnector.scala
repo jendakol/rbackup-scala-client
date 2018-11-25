@@ -1,4 +1,4 @@
-package lib
+package lib.server
 
 import java.io.{ByteArrayInputStream, InputStream, OutputStream}
 import java.net.ConnectException
@@ -15,9 +15,9 @@ import io.circe.Json
 import io.circe.generic.extras.auto._
 import lib.App._
 import lib.AppException.ServerNotResponding
-import lib.CirceImplicits._
-import lib.serverapi.ListFilesResponse.FilesList
-import lib.serverapi._
+import lib._
+import lib.server.serverapi.ListFilesResponse.FilesList
+import lib.server.serverapi._
 import monix.eval.Task
 import monix.execution.{Cancelable, Scheduler}
 import org.http4s
@@ -28,6 +28,8 @@ import org.http4s.multipart._
 import org.http4s.{Headers, Method, Request, Response, Status, Uri}
 import pureconfig.modules.http4s.uriReader
 import pureconfig.{CamelCase, ConfigFieldMapping, ProductHint}
+import utils.CirceImplicits._
+import utils.{FileCopier, InputStreamWithSha256, StatsInputStream, StatsOutputStream}
 
 import scala.concurrent.Await
 import scala.concurrent.duration._

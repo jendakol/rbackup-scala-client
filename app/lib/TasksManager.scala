@@ -13,6 +13,7 @@ import io.circe.syntax._
 import javax.inject.{Inject, Singleton}
 import lib.App._
 import lib.App.StringOps
+import lib.RunningTask.BackupSetUpload
 import monix.eval.Task
 import monix.execution.{CancelableFuture, Scheduler}
 
@@ -25,7 +26,7 @@ class TasksManager @Inject()(wsApiController: WsApiController)(implicit sch: Sch
   private val tasks = mutable.Map.empty[UUID, (CancelableFuture[Unit], RunningTask)]
   private val semaphore = Semaphore[Task](1).runSyncUnsafe(Duration.Inf)
 
-  def start(rt: RunningTask, exec: Result[Unit]): Result[Unit] = EitherT.right {
+  def start(rt: RunningTask)(exec: Result[Unit]): Result[Unit] = EitherT.right {
     semaphore.decrement.bracket { _ =>
       logger.debug(s"Starting task: $rt")
 
@@ -114,17 +115,22 @@ object RunningTask {
 
   case class FileUpload(fileName: String) extends RunningTask {
     override def toJson: Json =
-      parseUnsafe(s"""{ "name": "file-upload", "icon": "insert_drive_file", "data": { "file_name": "${fileName.fixPath}"} }""")
+      parseUnsafe(s"""{ "name": "file-upload", "data": { "file_name": "${fileName.fixPath}"} }""")
   }
 
   case class DirUpload(fileName: String) extends RunningTask {
     override def toJson: Json =
-      parseUnsafe(s"""{ "name": "dir-upload", "icon": "folder", "data": { "file_name": "${fileName.fixPath}"} }""")
+      parseUnsafe(s"""{ "name": "dir-upload", "data": { "file_name": "${fileName.fixPath}"} }""")
   }
 
   case class FileDownload(fileName: String) extends RunningTask {
     override def toJson: Json =
-      parseUnsafe(s"""{ "name": "file-download", "icon": "insert_drive_file", "data": { "file_name": "${fileName.fixPath}"} }""")
+      parseUnsafe(s"""{ "name": "file-download", "data": { "file_name": "${fileName.fixPath}"} }""")
+  }
+
+  case class BackupSetUpload(name: String) extends RunningTask {
+    override def toJson: Json =
+      parseUnsafe(s"""{ "name": "backupset-upload", "data": { "name": "$name"} }""")
   }
 
 }

@@ -1,7 +1,7 @@
-package lib
+package lib.server
 
 import better.files.File
-import lib.serverapi.{RemoteFile, RemoteFileVersion}
+import lib.server.serverapi.{RemoteFile, RemoteFileVersion}
 
 case class CloudFilesList private (files: Map[String, RemoteFile]) {
   def versions(file: File): Option[Vector[RemoteFileVersion]] = {

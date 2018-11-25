@@ -1,0 +1,859 @@
+[
+  {
+    "id": 2,
+    "text": "/",
+    "value": "/",
+    "icon": "fas fa-folder icon-state-default",
+    "opened": true,
+    "selected": false,
+    "disabled": false,
+    "loading": false,
+    "children": [
+      {
+        "id": 58,
+        "text": "bin",
+        "value": "/bin",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": true,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 57,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 60,
+        "text": "boot",
+        "value": "/boot",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 59,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 62,
+        "text": "home",
+        "value": "/home",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 61,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 64,
+        "text": "lib",
+        "value": "/lib",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 63,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 66,
+        "text": "aaTestDir",
+        "value": "/aaTestDir",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": true,
+        "selected": true,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 118,
+            "text": "aaTestFile",
+            "value": "/aaTestDir/aaTestFile",
+            "icon": "fas fa-file icon-state-default",
+            "opened": false,
+            "selected": true,
+            "disabled": false,
+            "loading": false,
+            "children": [],
+            "isLeaf": true,
+            "isFile": true,
+            "isVersion": false,
+            "isDir": false
+          },
+          {
+            "id": 1118,
+            "text": "aaTestDirInner",
+            "value": "/aaTestDir/aaTestDirInner",
+            "icon": "fas fa-folder icon-state-default",
+            "opened": false,
+            "selected": true,
+            "disabled": false,
+            "loading": false,
+            "children": [],
+            "isLeaf": true,
+            "isFile": false,
+            "isVersion": false,
+            "isDir": true
+          },
+          {
+            "id": 119,
+            "text": "A77_32123.jpg",
+            "value": "/aaTestDir/A77_32123.jpg",
+            "icon": "fas fa-file icon-state-default",
+            "opened": false,
+            "selected": true,
+            "disabled": false,
+            "loading": false,
+            "children": [],
+            "isLeaf": true,
+            "isFile": true,
+            "isVersion": false,
+            "isDir": false
+          },
+          {
+            "id": 120,
+            "text": "apple-notifications.zip",
+            "value": "/aaTestDir/apple-notifications.zip",
+            "icon": "fas fa-file icon-state-default",
+            "opened": false,
+            "selected": true,
+            "disabled": false,
+            "loading": false,
+            "children": [],
+            "isLeaf": true,
+            "isFile": true,
+            "isVersion": false,
+            "isDir": false
+          },
+          {
+            "id": 121,
+            "text": "CrashPlan_4.8.0_Linux.tgz",
+            "value": "/aaTestDir/CrashPlan_4.8.0_Linux.tgz",
+            "icon": "fas fa-file icon-state-default",
+            "opened": false,
+            "selected": true,
+            "disabled": false,
+            "loading": false,
+            "children": [],
+            "isLeaf": true,
+            "isFile": true,
+            "isVersion": false,
+            "isDir": false
+          },
+          {
+            "id": 122,
+            "text": "best-effort-classes-export-labels-nonpe-100k.csv",
+            "value": "/aaTestDir/best-effort-classes-export-labels-nonpe-100k.csv",
+            "icon": "fas fa-file icon-state-default",
+            "opened": false,
+            "selected": true,
+            "disabled": false,
+            "loading": false,
+            "children": [],
+            "isLeaf": true,
+            "isFile": true,
+            "isVersion": false,
+            "isDir": false
+          },
+          {
+            "id": 123,
+            "text": "AVG-email-templates-sazba.zip",
+            "value": "/aaTestDir/AVG-email-templates-sazba.zip",
+            "icon": "fas fa-file icon-state-default",
+            "opened": false,
+            "selected": true,
+            "disabled": false,
+            "loading": false,
+            "children": [],
+            "isLeaf": true,
+            "isFile": true,
+            "isVersion": false,
+            "isDir": false
+          },
+          {
+            "id": 124,
+            "text": "A77_32122.jpg",
+            "value": "/aaTestDir/A77_32122.jpg",
+            "icon": "fas fa-file icon-state-default",
+            "opened": false,
+            "selected": true,
+            "disabled": false,
+            "loading": false,
+            "children": [],
+            "isLeaf": true,
+            "isFile": true,
+            "isVersion": false,
+            "isDir": false
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 68,
+        "text": "tmp",
+        "value": "/tmp",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 67,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 70,
+        "text": "snap",
+        "value": "/snap",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 69,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 72,
+        "text": "sys",
+        "value": "/sys",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 71,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 74,
+        "text": "mnt",
+        "value": "/mnt",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 73,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 76,
+        "text": "data",
+        "value": "/data",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 75,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 78,
+        "text": "target",
+        "value": "/target",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 77,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 80,
+        "text": "libx32",
+        "value": "/libx32",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 79,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 82,
+        "text": "srv",
+        "value": "/srv",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 81,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 84,
+        "text": "lib32",
+        "value": "/lib32",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 83,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 86,
+        "text": "opt",
+        "value": "/opt",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 85,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 88,
+        "text": "sbin",
+        "value": "/sbin",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 87,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 90,
+        "text": "usr",
+        "value": "/usr",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 89,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 92,
+        "text": "dev",
+        "value": "/dev",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 91,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 94,
+        "text": "temp",
+        "value": "/temp",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 93,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 96,
+        "text": "etc",
+        "value": "/etc",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 95,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 98,
+        "text": "cdrom",
+        "value": "/cdrom",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 97,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 100,
+        "text": "proc",
+        "value": "/proc",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 99,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 102,
+        "text": "var",
+        "value": "/var",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 101,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 104,
+        "text": "media",
+        "value": "/media",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 103,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 105,
+        "text": "initrd.img",
+        "value": "/initrd.img",
+        "icon": "fas fa-file icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [],
+        "isLeaf": true,
+        "isFile": true,
+        "isVersion": false,
+        "isDir": false
+      },
+      {
+        "id": 107,
+        "text": "run",
+        "value": "/run",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 106,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 109,
+        "text": "lib64",
+        "value": "/lib64",
+        "icon": "fas fa-folder icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [
+          {
+            "id": 108,
+            "text": "Loading...",
+            "value": "Loading...",
+            "icon": "",
+            "opened": false,
+            "selected": false,
+            "disabled": true,
+            "loading": true,
+            "children": []
+          }
+        ],
+        "isLeaf": false,
+        "isFile": false,
+        "isVersion": false,
+        "isDir": true
+      },
+      {
+        "id": 110,
+        "text": "initrd.img.old",
+        "value": "/initrd.img.old",
+        "icon": "fas fa-file icon-state-default",
+        "opened": false,
+        "selected": false,
+        "disabled": false,
+        "loading": false,
+        "children": [],
+        "isLeaf": true,
+        "isFile": true,
+        "isVersion": false,
+        "isDir": false
+      }
+    ],
+    "isLeaf": false,
+    "isFile": false,
+    "isVersion": false,
+    "isDir": true
+  }
+]

@@ -1,16 +1,20 @@
 version: '2'
 
 services:
-  database:
+  mysql:
     image: mysql:5
     environment:
       MYSQL_ROOT_PASSWORD: rbackup
       MYSQL_DATABASE: rbackup
+  h2:
+    image: oscarfonts/h2
+    ports:
+      - "1521:1521"
   tests:
     build:
       context: .
       dockerfile: Dockerfile
     depends_on:
-      - database
+      - mysql
     ports:
       - "3369:3369"
