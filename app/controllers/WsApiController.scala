@@ -15,7 +15,7 @@ import javax.inject._
 import lib.App
 import lib.App._
 import lib.AppException.{ParsingFailure, WsException}
-import lib.CirceImplicits._
+import utils.CirceImplicits._
 import monix.eval.Task
 import monix.execution.Scheduler
 import play.api.libs.circe.Circe

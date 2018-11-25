@@ -1,4 +1,4 @@
-package lib
+package lib.db
 
 import java.time.{Duration, ZonedDateTime}
 import java.util.concurrent.ExecutorService
@@ -11,13 +11,14 @@ import io.circe.generic.extras.auto._
 import io.circe.parser._
 import io.circe.syntax._
 import lib.App.Result
+import lib.AppException
 import lib.AppException.DbException
-import lib.CirceImplicits._
-import lib.serverapi.RemoteFile
+import lib.server.serverapi.RemoteFile
 import monix.eval.Task
 import monix.execution.Scheduler
 import monix.execution.schedulers.SchedulerService
 import scalikejdbc._
+import utils.CirceImplicits._
 
 import scala.util.control.NonFatal
 

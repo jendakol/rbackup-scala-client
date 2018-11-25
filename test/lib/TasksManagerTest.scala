@@ -7,7 +7,7 @@ import controllers.{WsApiController, WsMessage}
 import io.circe.Json
 import io.circe.generic.extras.auto._
 import lib.App._
-import lib.CirceImplicits._
+import utils.CirceImplicits._
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.mockito.Mockito._

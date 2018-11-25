@@ -8,7 +8,8 @@ import io.circe.generic.auto._
 import io.circe.syntax._
 import io.circe.{Json, Printer}
 import javax.inject.{Inject, Singleton}
-import lib.{AppException, Command, CommandExecutor}
+import lib.AppException
+import lib.commands.{Command, CommandExecutor}
 import monix.execution.Scheduler
 import play.api.libs.circe.Circe
 import play.api.mvc.{AbstractController, Action, ControllerComponents}

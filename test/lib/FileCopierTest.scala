@@ -3,6 +3,7 @@ package lib
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import org.scalatest.FunSuite
+import utils.FileCopier
 
 class FileCopierTest extends FunSuite {
   test("basic") {

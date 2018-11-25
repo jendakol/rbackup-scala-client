@@ -1,4 +1,4 @@
-package lib
+package lib.commands
 
 import better.files.File
 import cats.data.EitherT
@@ -12,13 +12,16 @@ import io.circe.syntax._
 import javax.inject.{Inject, Singleton}
 import lib.App._
 import lib.AppException.LoginRequired
-import lib.CirceImplicits._
-import lib.clientapi.{BackupSetNode, FileTree, FileTreeNode}
-import lib.serverapi._
+import lib._
+import lib.client.clientapi.{BackupSetNode, FileTree, FileTreeNode}
+import lib.db.Dao
+import lib.server.serverapi._
+import lib.server.{CloudConnector, CloudFilesRegistry}
 import lib.settings.Settings
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.http4s.Uri
+import utils.CirceImplicits._
 import utils.ConfigProperty
 
 @Singleton

@@ -4,8 +4,10 @@ import cats.Traverse
 import cats.instances.list._
 import com.typesafe.scalalogging.StrictLogging
 import lib.App._
-import lib.clientapi.ClientStatus
-import lib.serverapi.ListFilesResponse
+import lib.client.clientapi.ClientStatus
+import lib.db.Dao
+import lib.server.CloudConnector
+import lib.server.serverapi.ListFilesResponse
 import lib.settings.Settings
 
 class StateManager(deviceId: DeviceId, cloudConnector: CloudConnector, dao: Dao, settings: Settings) extends StrictLogging {

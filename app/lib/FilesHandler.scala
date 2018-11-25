@@ -11,8 +11,10 @@ import io.circe.generic.extras.auto._
 import io.circe.syntax._
 import javax.inject.{Inject, Named}
 import lib.App._
-import lib.CirceImplicits._
-import lib.serverapi.{DownloadResponse, RemoteFile, RemoteFileVersion, UploadResponse}
+import utils.CirceImplicits._
+import lib.db.{Dao, DbFile}
+import lib.server.serverapi.{DownloadResponse, RemoteFile, RemoteFileVersion, UploadResponse}
+import lib.server.{CloudConnector, CloudFilesRegistry}
 import lib.settings.Settings
 import monix.eval.Task
 import monix.execution.Scheduler

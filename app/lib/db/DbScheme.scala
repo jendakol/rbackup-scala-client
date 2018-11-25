@@ -1,4 +1,4 @@
-package lib
+package lib.db
 
 import scalikejdbc._
 

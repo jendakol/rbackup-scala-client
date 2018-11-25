@@ -7,6 +7,7 @@ import controllers.WsApiController
 import javax.inject.Inject
 import lib.App.{parseUnsafe, _}
 import lib.AppException.MultipleFailuresException
+import lib.db.{BackupSet, Dao}
 import lib.settings.Settings
 import monix.execution.{Cancelable, Scheduler}
 

@@ -6,9 +6,10 @@ import java.util.concurrent.atomic.AtomicReference
 import cats.syntax.all._
 import io.circe.generic.extras.auto._
 import lib.App._
-import lib.CirceImplicits._
+import utils.CirceImplicits._
+import lib.ServerSession
+import lib.db.Dao
 import lib.settings.Settings._
-import lib.{Dao, ServerSession, SettingsConverter}
 import org.apache.commons.lang3.StringUtils
 
 class Settings(dao: Dao) {

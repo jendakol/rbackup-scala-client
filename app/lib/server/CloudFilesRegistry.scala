@@ -1,4 +1,4 @@
-package lib
+package lib.server
 
 import better.files.File
 import controllers.WsApiController
@@ -6,9 +6,9 @@ import io.circe.Json
 import io.circe.generic.extras.auto._
 import javax.inject.Inject
 import lib.App._
-import lib.CirceImplicits._
-import lib.clientapi.{FileTree, Version}
-import lib.serverapi.{RemoteFile, RemoteFileVersion}
+import lib.client.clientapi.{FileTree, Version}
+import lib.db.Dao
+import lib.server.serverapi.{RemoteFile, RemoteFileVersion}
 
 class CloudFilesRegistry @Inject()(wsApiController: WsApiController, dao: Dao) {
 

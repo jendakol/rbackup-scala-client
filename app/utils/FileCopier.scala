@@ -1,4 +1,4 @@
-package lib
+package utils
 
 import java.io.{InputStream, OutputStream}
 import java.security.MessageDigest

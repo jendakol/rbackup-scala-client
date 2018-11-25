@@ -3,6 +3,8 @@ import java.util.concurrent.Executors
 import com.avast.metrics.scalaapi.Monitor
 import com.typesafe.scalalogging.StrictLogging
 import lib._
+import lib.db.{Dao, DbScheme}
+import lib.server.CloudConnector
 import lib.settings.Settings
 import monix.execution.Scheduler
 import net.codingwell.scalaguice.ScalaModule

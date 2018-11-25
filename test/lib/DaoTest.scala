@@ -4,6 +4,7 @@ import java.time.Duration
 import java.util.concurrent.Executors
 
 import better.files.File
+import lib.db.{Dao, DbScheme}
 import monix.execution.Scheduler.Implicits.global
 import org.scalatest.{BeforeAndAfterEach, FunSuite}
 import scalikejdbc.config.DBs

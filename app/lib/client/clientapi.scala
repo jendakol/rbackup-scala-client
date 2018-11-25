@@ -1,4 +1,4 @@
-package lib
+package lib.client
 
 import java.nio.file.Paths
 import java.time.ZoneId
@@ -10,9 +10,12 @@ import com.typesafe.scalalogging.StrictLogging
 import io.circe.generic.extras.Configuration
 import io.circe.syntax._
 import io.circe.{Decoder, Json}
-import lib.App.{StringOps, _}
-import lib.clientapi.FileTreeNode.{Directory, RegularFile}
-import lib.serverapi.RemoteFile
+import lib.App
+import lib.App._
+import lib.App.StringOps
+import lib.client.clientapi.FileTreeNode.{Directory, RegularFile}
+import lib.server.serverapi
+import lib.server.serverapi.{RemoteFile, RemoteFileVersion}
 import org.http4s.Uri
 
 object clientapi extends StrictLogging {
@@ -221,7 +224,7 @@ object clientapi extends StrictLogging {
   }
 
   object Version {
-    def apply(path: String, fileVersion: lib.serverapi.RemoteFileVersion): Version = new Version(
+    def apply(path: String, fileVersion: RemoteFileVersion): Version = new Version(
       value = fileVersion.version.toString,
       text = App.DateTimeFormatter.format(fileVersion.created.withZoneSameInstant(ZoneId.systemDefault())),
       path = path,

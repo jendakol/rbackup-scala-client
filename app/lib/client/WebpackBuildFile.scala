@@ -1,4 +1,4 @@
-package lib
+package lib.client
 
 import java.net.URI
 import java.nio.file.{FileSystems, Files, Paths}

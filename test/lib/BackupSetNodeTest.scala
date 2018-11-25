@@ -1,7 +1,7 @@
 package lib
 
 import io.circe.parser._
-import lib.clientapi.BackupSetNode
+import lib.client.clientapi.BackupSetNode
 import org.scalatest.FunSuite
 
 import scala.io.Source

@@ -2,9 +2,9 @@ package lib
 
 import cats.data.NonEmptyList
 import cats.instances.string._
-import lib.clientapi.FileTree
-import lib.clientapi.FileTreeNode._
-import lib.serverapi.RemoteFile
+import lib.client.clientapi.FileTree
+import lib.client.clientapi.FileTreeNode._
+import lib.server.serverapi.RemoteFile
 import org.scalatest.FunSuite
 
 class FileTreeTest extends FunSuite {

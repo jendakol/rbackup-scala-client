@@ -1,13 +1,12 @@
-package lib
+package lib.commands
 
 import java.util.UUID
 
 import io.circe.Json
 import io.circe.generic.auto._
 import lib.App._
-import lib.CirceImplicits._
-import lib.clientapi.BackupSetNode
-import lib.serverapi.{LoginResponse, RegistrationResponse}
+import lib.client.clientapi.BackupSetNode
+import lib.server.serverapi.{LoginResponse, RegistrationResponse}
 
 sealed trait Command
 

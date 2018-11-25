@@ -1,4 +1,4 @@
-package lib
+package lib.settings
 
 import java.time.Instant
 

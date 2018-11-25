@@ -1,8 +1,8 @@
-package lib
+package utils
 
 import java.util
 
-import lib.Sha256._
+import utils.Sha256._
 
 case class Sha256(bytes: Array[Byte]) {
   require(bytes.length == 32, s"Invalid Sha256: 32 bytes expected but ${bytes.length} provided")

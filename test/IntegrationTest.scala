@@ -1,11 +1,13 @@
-import utils.TestOps._
 import better.files.File
 import com.typesafe.config.ConfigFactory
-import lib.serverapi._
-import lib.{CloudConnector, ServerSession, Sha256}
+import lib.ServerSession
+import lib.server.CloudConnector
+import lib.server.serverapi._
 import monix.execution.Scheduler.Implicits.global
 import org.http4s.Uri
 import org.scalatest.FunSuite
+import utils.Sha256
+import utils.TestOps._
 
 class IntegrationTest extends FunSuite {
   private val connector = CloudConnector.fromConfig(ConfigFactory.empty())
@@ -32,7 +34,6 @@ class IntegrationTest extends FunSuite {
     val theFileHash = Sha256(theFile.sha256)
     val theFile2 = File.newTemporaryFile("rbackup")
     theFile2.write(randomString(1000))
-    val theFile2Hash = Sha256(theFile2.sha256)
 
     // login
     val username = randomString(10)
