@@ -1,10 +1,13 @@
 package lib
 
+import java.time.Instant
+
 import com.typesafe.scalalogging.StrictLogging
 import controllers.WsApiController
 import javax.inject.Inject
 import lib.App.{parseUnsafe, _}
 import lib.AppException.MultipleFailuresException
+import lib.settings.Settings
 import monix.execution.{Cancelable, Scheduler}
 
 import scala.concurrent.duration._
@@ -20,17 +23,30 @@ class BackupSetsExecutor @Inject()(dao: Dao,
     logger.info("Started execution of backup sets")
 
     scheduler.scheduleAtFixedRate(10.seconds, 1.minute) {
-      logger.debug("Executing waiting backup sets")
-      settings.session.map {
-        case Some(sid) => executeWaitingBackupSets()(sid)
-        case None => logger.info("Could not process backup sets - missing server session")
-      }
+      (for {
+        session <- settings.session
+        suspended <- executionsSuspended
+      } yield {
+        session match {
+          case Some(sid) =>
+            if (!suspended) executeWaitingBackupSets()(sid)
+            else {
+              logger.info("Executing backup sets is suspended")
+            }
+
+          case None => logger.info("Could not process backup sets - missing server session")
+        }
+      }).value
+        .runSyncUnsafe(Duration.Inf)
     }
   }
 
   private def executeWaitingBackupSets()(implicit session: ServerSession): Unit = {
+    logger.debug("Executing waiting backup sets")
+
     (for {
       sets <- dao.listBackupSetsToExecute()
+      _ = logger.info(s"Backup sets to be executed: ${sets.mkString("\n")}")
       _ <- sets.map(execute).sequentially
     } yield {
       sets
@@ -56,6 +72,8 @@ class BackupSetsExecutor @Inject()(dao: Dao,
 
       case None => throw new IllegalStateException("Must NOT happen")
     }
+
+    logger.debug(s"Executing $bs")
 
     tasksManager
       .start(RunningTask.BackupSetUpload(bs.name)) {
@@ -86,6 +104,14 @@ class BackupSetsExecutor @Inject()(dao: Dao,
             )
         }
       }
+  }
 
+  private def executionsSuspended: Result[Boolean] = {
+    settings.suspendedBackupSets.map {
+      case Some(until) =>
+        logger.debug(s"Backup sets suspended until $until")
+        until isAfter Instant.now()
+      case None => false
+    }
   }
 }

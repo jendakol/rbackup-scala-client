@@ -6,6 +6,7 @@ import com.typesafe.scalalogging.StrictLogging
 import lib.App._
 import lib.clientapi.ClientStatus
 import lib.serverapi.ListFilesResponse
+import lib.settings.Settings
 
 class StateManager(deviceId: DeviceId, cloudConnector: CloudConnector, dao: Dao, settings: Settings) extends StrictLogging {
   def appInit(): Result[Unit] = {

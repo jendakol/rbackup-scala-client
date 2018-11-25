@@ -51,7 +51,7 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
           case NonFatal(e) => logger.warn("Could not send WS message", e)
         }
 
-      case None => logger.info("Could not send WS message - connection not available")
+      case None => logger.debug("Could not send WS message - connection not available")
     }
   }
 

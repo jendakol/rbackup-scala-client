@@ -13,6 +13,7 @@ import javax.inject.{Inject, Named}
 import lib.App._
 import lib.CirceImplicits._
 import lib.serverapi.{DownloadResponse, RemoteFile, RemoteFileVersion, UploadResponse}
+import lib.settings.Settings
 import monix.eval.Task
 import monix.execution.Scheduler
 import monix.reactive.Observable

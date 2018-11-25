@@ -3,6 +3,7 @@ package lib
 import cats.data.EitherT
 import cats.syntax.either._
 import com.avast.metrics.scalaapi.Timer
+import com.typesafe.scalalogging.StrictLogging
 import io.circe.Json
 import javax.inject.{Inject, Singleton}
 import lib.AppException.MultipleFailuresException
@@ -16,7 +17,8 @@ import scala.concurrent.Future
 import scala.language.higherKinds
 
 @Singleton
-class App @Inject()(backupSetsExecutor: BackupSetsExecutor)(lifecycle: ApplicationLifecycle)(implicit sch: Scheduler) {
+class App @Inject()(backupSetsExecutor: BackupSetsExecutor)(lifecycle: ApplicationLifecycle)(implicit sch: Scheduler)
+    extends StrictLogging {
 
   lifecycle.addStopHook { () =>
     stop.runAsync
@@ -25,6 +27,7 @@ class App @Inject()(backupSetsExecutor: BackupSetsExecutor)(lifecycle: Applicati
   private val bse: Cancelable = backupSetsExecutor.start
 
   def stop: Task[Unit] = Task {
+    logger.info("Shutting down app")
     bse.cancel()
   }
 }
@@ -137,15 +140,15 @@ object App {
   implicit class TraversableOnceHelper[A, Coll[X] <: TraversableOnce[X]](val repr: Coll[A]) extends AnyVal {
 
     def collectPartition[B, C](implicit ev: A <:< Either[B, C],
-                               bfLeft: CanBuildFrom[Coll[A], B, Coll[B]],
-                               bfRight: CanBuildFrom[Coll[A], C, Coll[C]]): (Coll[B], Coll[C]) = {
+                               bfLeft: CanBuildFrom[Coll[Either[B, C]], B, Coll[B]],
+                               bfRight: CanBuildFrom[Coll[Either[B, C]], C, Coll[C]]): (Coll[B], Coll[C]) = {
+
       repr
-        .map(ev)
+        .asInstanceOf[Coll[Either[B, C]]]
         .collectPartition {
           case Right(v) => Right(v)
           case Left(v) => Left(v)
         }
-        .asInstanceOf[(Coll[B], Coll[C])]
     }
 
     def collectPartition[B, C](f: PartialFunction[A, Either[B, C]])(implicit bfLeft: CanBuildFrom[Coll[A], B, Coll[B]],

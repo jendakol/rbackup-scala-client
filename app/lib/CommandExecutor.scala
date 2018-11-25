@@ -15,6 +15,7 @@ import lib.AppException.LoginRequired
 import lib.CirceImplicits._
 import lib.clientapi.{BackupSetNode, FileTree, FileTreeNode}
 import lib.serverapi._
+import lib.settings.Settings
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.http4s.Uri
