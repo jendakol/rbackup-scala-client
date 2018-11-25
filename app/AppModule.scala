@@ -6,11 +6,16 @@ import lib._
 import lib.db.{Dao, DbScheme}
 import lib.server.CloudConnector
 import lib.settings.Settings
+import monix.eval.Task
 import monix.execution.Scheduler
 import net.codingwell.scalaguice.ScalaModule
+import org.apache.commons.lang3.SystemUtils
+import org.http4s.Uri
+import org.http4s.client.blaze.Http1Client
 import play.api.{Configuration, Environment}
 import scalikejdbc._
 import scalikejdbc.config.DBs
+import updater._
 import utils.AllowedWsApiOrigins
 
 import scala.collection.JavaConverters._
@@ -52,10 +57,17 @@ class AppModule(environment: Environment, configuration: Configuration)
     bind[Settings].toInstance(settings)
     bind[StateManager].toInstance(stateManager)
 
+    bind[GithubConnector].toInstance {
+      new GithubConnector(Http1Client[Task]().runSyncUnsafe(Duration.Inf),
+                          Uri.unsafeFromString("http://localhost:80/releases.json"),
+                          AppVersion(0, 1, 0))
+    }
+
     bind[Monitor].annotatedWithName("FilesHandler").toInstance(rootMonitor.named("fileshandler"))
 
     bind[Scheduler].toInstance(scheduler)
 
+    bindServiceUpdater()
     bind[App].asEagerSingleton()
 
     dao.resetProcessingFlags().value.runSyncUnsafe(Duration.Inf)
@@ -68,4 +80,11 @@ class AppModule(environment: Environment, configuration: Configuration)
     }
   }
 
+  private def bindServiceUpdater(): Unit = {
+    val updater = if (SystemUtils.IS_OS_WINDOWS) {
+      new WindowsServiceUpdater
+    } else new LinuxServiceUpdater
+
+    bind[ServiceUpdater].toInstance(updater)
+  }
 }

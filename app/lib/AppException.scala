@@ -27,4 +27,8 @@ object AppException {
 
   case class MultipleFailuresException(causes: Iterable[AppException]) extends AppException("Multiple failures")
 
+  case class FileException(desc: String, cause: Throwable = null) extends AppException(desc, cause)
+
+  case class UpdateException(desc: String, cause: Throwable = null) extends AppException(desc, cause)
+
 }

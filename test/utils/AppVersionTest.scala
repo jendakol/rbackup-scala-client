@@ -2,6 +2,7 @@ package utils
 
 import lib.AppException.ParsingFailure
 import org.scalatest.FunSuite
+import updater.AppVersion
 
 class AppVersionTest extends FunSuite {
   test("parse from tag name") {

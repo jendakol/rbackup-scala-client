@@ -52,7 +52,10 @@ class BackupSetsExecutor @Inject()(dao: Dao,
     } yield {
       sets
     }).runAsync {
-      case Right(sets) => logger.info(s"All backup sets were processes successfully (${sets.map(_.name)})")
+      case Right(sets) =>
+        if (sets.nonEmpty)
+          logger.info(s"All backup sets were processes successfully (${sets.map(_.name).mkString(", ")})")
+
       case Left(ex: MultipleFailuresException) => logger.warn(s"Execution of backup sets failed:\n${ex.causes.mkString("\n")}", ex)
       case Left(ex: AppException) => logger.warn("Execution of backup sets failed", ex)
       case Left(ex) => logger.error("Execution of backup sets failed", ex)

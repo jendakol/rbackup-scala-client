@@ -11,14 +11,15 @@ import org.mockito.ArgumentMatchers
 import org.mockito.Mockito._
 import org.scalatest.FunSuite
 import org.scalatest.mockito.MockitoSugar
+import updater.GithubConnector.Release
+import updater.{AppVersion, GithubConnector}
 import utils.TestOps._
-import utils.Updater.Release
 
 import scala.io.Source
 
-class UpdaterTest extends FunSuite with MockitoSugar {
+class GithubConnectorTest extends FunSuite with MockitoSugar {
   test("parse") {
-    val Right(releases) = Updater.parse(Source.fromResource("githubReleases.json").mkString)
+    val Right(releases) = GithubConnector.parse(Source.fromResource("githubReleases.json").mkString)
 
     assertResult(10)(releases.size)
 
@@ -42,7 +43,7 @@ class UpdaterTest extends FunSuite with MockitoSugar {
 
   test("checkUpdate") {
     val cl = mock[Client[Task]]
-    val updater = new Updater(cl, mock[Uri], AppVersion(2, 0, 2))
+    val updater = new GithubConnector(cl, mock[Uri], AppVersion(2, 0, 2))
 
     when(cl.get(ArgumentMatchers.any[Uri])(ArgumentMatchers.any())).thenAnswer(inv => {
       inv.getArgument[Response[Task] => Task[Either[AppException, Seq[Release]]]](1).apply {

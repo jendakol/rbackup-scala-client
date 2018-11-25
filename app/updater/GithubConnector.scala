@@ -1,19 +1,22 @@
-package utils
+package updater
 
+import java.io.IOException
 import java.time.Instant
 
+import better.files.File
 import cats.data.EitherT
 import cats.syntax.all._
 import io.circe.Decoder
 import lib.App.Result
 import lib.AppException
-import lib.AppException.{InvalidResponseException, ParsingFailure}
+import lib.AppException.{FileException, InvalidResponseException, ParsingFailure}
 import monix.eval.Task
+import monix.execution.Scheduler
 import org.http4s.client.Client
 import org.http4s.{Status, Uri}
-import utils.Updater.{Release, _}
+import updater.GithubConnector._
 
-class Updater(httpClient: Client[Task], uri: Uri, appVersion: AppVersion) {
+class GithubConnector(httpClient: Client[Task], uri: Uri, appVersion: AppVersion)(implicit sch: Scheduler) {
   def checkUpdate: Result[Option[Release]] = {
     EitherT {
       httpClient.get(uri) { resp =>
@@ -34,15 +37,36 @@ class Updater(httpClient: Client[Task], uri: Uri, appVersion: AppVersion) {
         }
     }
   }
+
+  def download(asset: Asset): Result[File] = {
+    EitherT {
+      httpClient
+        .get(asset.browserDownloadUrl) { resp =>
+          val file = File("./update")
+
+          resp.body
+            .through(fs2.io.writeOutputStreamAsync(Task {
+              file.newOutputStream
+            }))
+            .compile
+            .drain
+            .map(_ => Right(file): Either[AppException, File])
+            .onErrorRecover {
+              case e: IOException => Left(FileException("Could not download update", e))
+            }
+        }
+
+    }
+  }
 }
 
-object Updater {
+object GithubConnector {
 
-  import CirceImplicits._
   import io.circe.generic.extras.semiauto._
   import io.circe.parser._
+  import utils.CirceImplicits._
 
-  final val Repository = "jendakol/rbackup-scala-client"
+  final val ReleasesUrl = Uri.uri("https://github.com/jendakol/rbackup-scala-client/releases")
 
   def parse(str: String): Either[ParsingFailure, Seq[Release]] = {
     decode[Seq[Release]](str).leftMap(ParsingFailure(str, _))

@@ -11,13 +11,14 @@ import monix.eval.Task
 import monix.execution.{Cancelable, Scheduler}
 import org.http4s.Uri
 import play.api.inject.ApplicationLifecycle
+import updater.Updater
 
 import scala.collection.generic.CanBuildFrom
 import scala.concurrent.Future
 import scala.language.higherKinds
 
 @Singleton
-class App @Inject()(backupSetsExecutor: BackupSetsExecutor)(lifecycle: ApplicationLifecycle)(implicit sch: Scheduler)
+class App @Inject()(backupSetsExecutor: BackupSetsExecutor, updater: Updater)(lifecycle: ApplicationLifecycle)(implicit sch: Scheduler)
     extends StrictLogging {
 
   lifecycle.addStopHook { () =>
@@ -25,10 +26,12 @@ class App @Inject()(backupSetsExecutor: BackupSetsExecutor)(lifecycle: Applicati
   }
 
   private val bse: Cancelable = backupSetsExecutor.start
+  private val upd: Cancelable = updater.start
 
   def stop: Task[Unit] = Task {
     logger.info("Shutting down app")
     bse.cancel()
+    upd.cancel()
   }
 }
 

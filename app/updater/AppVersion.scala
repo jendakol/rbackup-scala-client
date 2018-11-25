@@ -1,7 +1,7 @@
-package utils
+package updater
 
 import lib.AppException.ParsingFailure
-import utils.AppVersion._
+import updater.AppVersion._
 
 case class AppVersion(major: Int, minor: Int, build: Int, suffix: Option[String] = None) {
   def >(other: AppVersion): Boolean = {
