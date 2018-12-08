@@ -80,6 +80,8 @@ frontEndBuild := {
 
 frontEndBuild := (frontEndBuild dependsOn cleanFrontEndBuild).value
 
+dist := (dist dependsOn frontEndBuild).value
+
 lazy val setVersionInSources = taskKey[Unit]("Sets build version into")
 
 setVersionInSources := {
@@ -102,8 +104,6 @@ setVersionInSources := {
 
 sources in (Compile, doc) := Seq.empty
 publishArtifact in (Compile, packageDoc) := false
-
-dist := (dist dependsOn frontEndBuild).value
 
 PlayKeys.playDefaultPort := 3370
 PlayKeys.devSettings := Seq("play.server.http.port" -> "3370")

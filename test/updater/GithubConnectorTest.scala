@@ -1,4 +1,4 @@
-package utils
+package updater
 
 import java.time.Instant
 
@@ -12,7 +12,6 @@ import org.mockito.Mockito._
 import org.scalatest.FunSuite
 import org.scalatest.mockito.MockitoSugar
 import updater.GithubConnector.Release
-import updater.{AppVersion, GithubConnector}
 import utils.TestOps._
 
 import scala.io.Source
