@@ -58,9 +58,11 @@ class AppModule(environment: Environment, configuration: Configuration)
     bind[StateManager].toInstance(stateManager)
 
     bind[GithubConnector].toInstance {
-      new GithubConnector(Http1Client[Task]().runSyncUnsafe(Duration.Inf),
-                          Uri.unsafeFromString("http://localhost:80/releases.json"),
-                          AppVersion(0, 1, 0))
+      new GithubConnector(
+        Http1Client[Task]().runSyncUnsafe(Duration.Inf),
+        Uri.unsafeFromString(config.getString("updater.releasesUrl")),
+        AppVersion(config.getString("appVersion")).getOrElse(throw new IllegalArgumentException("Could not parse appVersion"))
+      )
     }
 
     bind[Monitor].annotatedWithName("FilesHandler").toInstance(rootMonitor.named("fileshandler"))

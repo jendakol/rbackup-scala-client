@@ -1,22 +1,39 @@
 package updater
 
 import better.files.File
+import com.typesafe.scalalogging.StrictLogging
 
 import scala.language.postfixOps
-import scala.sys.process._
 
 sealed trait ServiceUpdater {
   def restartAndReplace(dirWithUpdate: File): Unit
 }
 
-class WindowsServiceUpdater extends ServiceUpdater {
+class WindowsServiceUpdater extends ServiceUpdater with StrictLogging {
   override def restartAndReplace(dirWithUpdate: File): Unit = {
-    "%COMPSPEC% /C /D \"scripts\\restart_replace.cmd\" Arg1 Arg2 Arg3" !
+    Runtime.getRuntime.exec(
+      Array(
+        "cmd",
+        "/C",
+        "start",
+        "\"\"",
+        "restart_replace.cmd",
+        dirWithUpdate.pathAsString
+      ))
+    ()
   }
 }
 
 class LinuxServiceUpdater extends ServiceUpdater {
   override def restartAndReplace(dirWithUpdate: File): Unit = {
-    "/bin/bash -c \"restart_replace.sh\"" !
+    Runtime.getRuntime.exec(
+      Array(
+        "/bin/bash",
+        "-c",
+        "restart_replace.sh",
+        dirWithUpdate.pathAsString,
+        "&",
+      ))
+    ()
   }
 }

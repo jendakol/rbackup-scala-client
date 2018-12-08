@@ -9,7 +9,7 @@ import cats.syntax.all._
 import io.circe.Decoder
 import lib.App.Result
 import lib.AppException
-import lib.AppException.{FileException, InvalidResponseException, ParsingFailure}
+import lib.AppException._
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.http4s.client.Client
@@ -42,7 +42,7 @@ class GithubConnector(httpClient: Client[Task], uri: Uri, appVersion: AppVersion
     EitherT {
       httpClient
         .get(asset.browserDownloadUrl) { resp =>
-          val file = File("./update")
+          val file = File.temporaryFile("rbackup", s"update-${asset.name}").get
 
           resp.body
             .through(fs2.io.writeOutputStreamAsync(Task {
@@ -65,8 +65,6 @@ object GithubConnector {
   import io.circe.generic.extras.semiauto._
   import io.circe.parser._
   import utils.CirceImplicits._
-
-  final val ReleasesUrl = Uri.uri("https://github.com/jendakol/rbackup-scala-client/releases")
 
   def parse(str: String): Either[ParsingFailure, Seq[Release]] = {
     decode[Seq[Release]](str).leftMap(ParsingFailure(str, _))

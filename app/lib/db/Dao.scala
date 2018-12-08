@@ -159,7 +159,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
 
   def deleteAllFiles(): Result[Unit] = EitherT {
     Task {
-      logger.info(s"Deleting all files")
+      logger.debug(s"Deleting all files")
 
       DB.autoCommit { implicit session =>
         sql"DELETE FROM files".executeUpdate().apply()

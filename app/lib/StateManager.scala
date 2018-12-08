@@ -56,7 +56,7 @@ class StateManager(deviceId: DeviceId, cloudConnector: CloudConnector, dao: Dao,
   }
 
   def downloadRemoteFilesList(implicit session: ServerSession): Result[Unit] = {
-    logger.debug("Downloading remote files list")
+    logger.info("Downloading remote files list")
 
     for {
       allFiles <- cloudConnector.listFiles(Some(deviceId)).subflatMap {
