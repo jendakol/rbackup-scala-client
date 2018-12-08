@@ -45,7 +45,7 @@ class Updater @Inject()(connector: GithubConnector, serviceUpdater: ServiceUpdat
       val dirWithUpdate = file.unzipTo(File(s"update-${release.tagName}"))
       logger.debug(s"Updater unzipped the update to $dirWithUpdate")
 
-      serviceUpdater.restartAndReplace()
+      serviceUpdater.restartAndReplace(dirWithUpdate)
     }
   }
 
