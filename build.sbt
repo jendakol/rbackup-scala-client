@@ -13,7 +13,7 @@ mappings in Universal ++= directory(baseDirectory.value / "public")
 
 name := "rbackup-client"
 
-version := "0.1"
+version := sys.env.getOrElse("TRAVIS_TAG", "0.1.0")
 
 scalaVersion := "2.12.7"
 
@@ -80,7 +80,27 @@ frontEndBuild := {
 
 frontEndBuild := (frontEndBuild dependsOn cleanFrontEndBuild).value
 
-sources in (Compile,doc) := Seq.empty
+lazy val setVersionInSources = taskKey[Unit]("Sets build version into")
+
+setVersionInSources := {
+  import java.io.PrintWriter
+  import scala.io.Source
+  
+  val version = sys.env.getOrElse("TRAVIS_TAG", "0.1.0")
+  println(s"Setting app version to $version")
+  
+  val src = Source.fromFile("app/lib/App.scala").mkString
+  val updated = src.replaceAll(
+    """final val versionStr: String = "\d+.\d+.\d+"""",
+    s"""final val versionStr: String = "$version""""
+  )
+  
+  val writer = new PrintWriter(new File("app/lib/App.scala"))
+  writer.write(updated)
+  writer.close()
+}
+
+sources in (Compile, doc) := Seq.empty
 publishArtifact in (Compile, packageDoc) := false
 
 dist := (dist dependsOn frontEndBuild).value

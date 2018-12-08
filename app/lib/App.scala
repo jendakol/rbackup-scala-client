@@ -11,7 +11,7 @@ import monix.eval.Task
 import monix.execution.{Cancelable, Scheduler}
 import org.http4s.Uri
 import play.api.inject.ApplicationLifecycle
-import updater.Updater
+import updater.{AppVersion, Updater}
 
 import scala.collection.generic.CanBuildFrom
 import scala.concurrent.Future
@@ -36,6 +36,9 @@ class App @Inject()(backupSetsExecutor: BackupSetsExecutor, updater: Updater)(li
 }
 
 object App {
+  final val versionStr: String = "0.1.0"
+  final val version: AppVersion = AppVersion(versionStr).getOrElse(throw new IllegalArgumentException("Could not parse versionStr"))
+
   type Result[A] = EitherT[Task, AppException, A]
 
   def pureResult[A](a: => A): Result[A] = {

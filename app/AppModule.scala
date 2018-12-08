@@ -61,7 +61,7 @@ class AppModule(environment: Environment, configuration: Configuration)
       new GithubConnector(
         Http1Client[Task]().runSyncUnsafe(Duration.Inf),
         Uri.unsafeFromString(config.getString("updater.releasesUrl")),
-        AppVersion(config.getString("appVersion")).getOrElse(throw new IllegalArgumentException("Could not parse appVersion"))
+        App.version
       )
     }
 
