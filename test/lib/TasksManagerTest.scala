@@ -7,13 +7,13 @@ import controllers.{WsApiController, WsMessage}
 import io.circe.Json
 import io.circe.generic.extras.auto._
 import lib.App._
-import utils.CirceImplicits._
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.mockito.Mockito._
 import org.mockito.{ArgumentCaptor, ArgumentMatchers}
 import org.scalatest.FunSuite
 import org.scalatest.mockito.MockitoSugar
+import utils.CirceImplicits._
 
 import scala.concurrent.duration._
 
@@ -22,7 +22,7 @@ class TasksManagerTest extends FunSuite with MockitoSugar {
     val runningTask = RunningTask.FileUpload("theName")
 
     val wsApi = mock[WsApiController]
-    when(wsApi.send(ArgumentMatchers.any())).thenReturn(pureResult(()))
+    when(wsApi.send(ArgumentMatchers.any(), ArgumentMatchers.any())).thenReturn(pureResult(()))
 
     val manager = new TasksManager(wsApi)
 
@@ -37,7 +37,7 @@ class TasksManagerTest extends FunSuite with MockitoSugar {
 
     assertResult(false)(started)
     assertResult(false)(finished)
-    verify(wsApi, times(0)).send(ArgumentMatchers.any())
+    verify(wsApi, times(0)).send(ArgumentMatchers.any(), ArgumentMatchers.any())
 
     startTask.value.runSyncUnsafe(Duration.Inf)
 
@@ -46,7 +46,7 @@ class TasksManagerTest extends FunSuite with MockitoSugar {
 
       assertResult(true)(started)
       assertResult(false)(finished)
-      verify(wsApi, times(1)).send(captor.capture())
+      verify(wsApi, times(1)).send(captor.capture(), ArgumentMatchers.any())
 
       assertResult(Seq(runningTask.toJson)) {
         captor.getValue.data.as[Map[UUID, Json]].getOrElse(fail()).values.toSeq
@@ -60,7 +60,7 @@ class TasksManagerTest extends FunSuite with MockitoSugar {
 
       assertResult(true)(started)
       assertResult(true)(finished)
-      verify(wsApi, times(2)).send(captor.capture())
+      verify(wsApi, times(2)).send(captor.capture(), ArgumentMatchers.any())
 
       assertResult(Seq.empty) {
         captor.getValue.data.as[Map[UUID, Json]].getOrElse(fail()).values.toSeq
@@ -72,7 +72,7 @@ class TasksManagerTest extends FunSuite with MockitoSugar {
     val runningTask = RunningTask.FileUpload("theName")
 
     val wsApi = mock[WsApiController]
-    when(wsApi.send(ArgumentMatchers.any())).thenReturn(pureResult(()))
+    when(wsApi.send(ArgumentMatchers.any(), ArgumentMatchers.any())).thenReturn(pureResult(()))
 
     val manager = new TasksManager(wsApi)
 
@@ -87,7 +87,7 @@ class TasksManagerTest extends FunSuite with MockitoSugar {
 
     assertResult(false)(started)
     assertResult(false)(finished)
-    verify(wsApi, times(0)).send(ArgumentMatchers.any())
+    verify(wsApi, times(0)).send(ArgumentMatchers.any(), ArgumentMatchers.any())
 
     startTask.value.runSyncUnsafe(Duration.Inf)
 
@@ -96,7 +96,7 @@ class TasksManagerTest extends FunSuite with MockitoSugar {
 
       assertResult(true)(started)
       assertResult(false)(finished)
-      verify(wsApi, times(1)).send(captor.capture())
+      verify(wsApi, times(1)).send(captor.capture(), ArgumentMatchers.any())
 
       assertResult(Seq(runningTask.toJson)) {
         captor.getValue.data.as[Map[UUID, Json]].getOrElse(fail()).values.toSeq
@@ -110,7 +110,7 @@ class TasksManagerTest extends FunSuite with MockitoSugar {
 
       assertResult(true)(started)
       assertResult(true)(finished)
-      verify(wsApi, times(2)).send(captor.capture())
+      verify(wsApi, times(2)).send(captor.capture(), ArgumentMatchers.any())
 
       assertResult(Seq.empty) {
         captor.getValue.data.as[Map[UUID, Json]].getOrElse(fail()).values.toSeq
@@ -122,7 +122,7 @@ class TasksManagerTest extends FunSuite with MockitoSugar {
     val runningTask = RunningTask.FileUpload("theName")
 
     val wsApi = mock[WsApiController]
-    when(wsApi.send(ArgumentMatchers.any())).thenReturn(pureResult(()))
+    when(wsApi.send(ArgumentMatchers.any(), ArgumentMatchers.any())).thenReturn(pureResult(()))
 
     val manager = new TasksManager(wsApi)
 
@@ -145,7 +145,7 @@ class TasksManagerTest extends FunSuite with MockitoSugar {
     assertResult(false)(finished)
     assertResult(false)(cancelled)
 
-    verify(wsApi, times(0)).send(ArgumentMatchers.any())
+    verify(wsApi, times(0)).send(ArgumentMatchers.any(), ArgumentMatchers.any())
 
     startTask.value.runSyncUnsafe(Duration.Inf)
 
@@ -155,7 +155,7 @@ class TasksManagerTest extends FunSuite with MockitoSugar {
       assertResult(true)(started)
       assertResult(false)(finished)
       assertResult(cancelled)(finished)
-      verify(wsApi, times(1)).send(captor.capture())
+      verify(wsApi, times(1)).send(captor.capture(), ArgumentMatchers.any())
 
       val tasks = captor.getValue.data.as[Map[UUID, Json]].getOrElse(fail()).toSeq
 
@@ -176,7 +176,7 @@ class TasksManagerTest extends FunSuite with MockitoSugar {
       assertResult(true)(started)
       assertResult(false)(finished)
       assertResult(true)(cancelled)
-      verify(wsApi, times(2)).send(captor.capture())
+      verify(wsApi, times(2)).send(captor.capture(), ArgumentMatchers.any())
 
       assertResult(Seq.empty) {
         captor.getValue.data.as[Map[UUID, Json]].getOrElse(fail()).values.toSeq

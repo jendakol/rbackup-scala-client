@@ -1,6 +1,8 @@
 import java.util.concurrent.Executors
 
+import cats.effect.Effect
 import com.avast.metrics.scalaapi.Monitor
+import com.google.inject.TypeLiteral
 import com.typesafe.scalalogging.StrictLogging
 import io.sentry.Sentry
 import lib.App._
@@ -30,7 +32,7 @@ class AppModule(environment: Environment, configuration: Configuration)
     with StrictLogging {
   private val config = configuration.underlying
 
-  if (config.getBoolean("sentry.enabled")) {
+  if (config.getBoolean("sentry.enabled") && config.getString("sentry.environment") != "dev") {
     logger.info("Sentry configured")
     val sentry = Sentry.init(config.getString("sentry.dsn"))
     sentry.setRelease(App.versionStr)
@@ -56,6 +58,9 @@ class AppModule(environment: Environment, configuration: Configuration)
       executor = Executors.newScheduledThreadPool(4),
       ec = ExecutionContext.fromExecutorService(Executors.newWorkStealingPool(16))
     )
+
+    val F = Task.catsEffect
+    bind(new TypeLiteral[Effect[Task]]() {}).toInstance(F)
 
     val blockingScheduler = Scheduler.io()
 
@@ -92,13 +97,6 @@ class AppModule(environment: Environment, configuration: Configuration)
 
     dao.resetProcessingFlags().value.runSyncUnsafe(Duration.Inf)
 
-    // startup:
-
-    stateManager.appInit().value.toIO.unsafeRunSync() match {
-      case Right(_) => settings.initializing(false)
-      case Left(err) => throw err
-    }
-
     // create backup set if there is none
     (for {
       bss <- dao.listAllBackupSets()
@@ -106,6 +104,13 @@ class AppModule(environment: Environment, configuration: Configuration)
     } yield {
       ()
     }).value.toIO.unsafeRunSync()
+
+    // startup:
+
+    stateManager.appInit().value.toIO.unsafeRunSync() match {
+      case Right(_) => settings.initializing(false)
+      case Left(err) => throw err
+    }
   }
 
   private def bindServiceUpdater(): Unit = {

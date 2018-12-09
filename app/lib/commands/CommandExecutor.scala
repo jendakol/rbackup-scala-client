@@ -152,7 +152,8 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
         currentFiles <- dao.listFilesInBackupSet(id)
         _ <- wsApiController.send(
           "backupSetDetailsUpdate",
-          parseUnsafe(s"""{ "id": $id, "type": "files", "files":${currentFiles.map(_.pathAsString).asJson}}""")
+          parseUnsafe(s"""{ "id": $id, "type": "files", "files":${currentFiles.map(_.pathAsString).asJson}}"""),
+          ignoreFailure = true
         )
       } yield JsonSuccess
 
@@ -284,7 +285,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
         }
       }
 
-      wsApiController.send("finishUpload", respJson)
+      wsApiController.send("finishUpload", respJson, ignoreFailure = true)
     }
 
     val runningTask = if (file.isDirectory) {
@@ -341,7 +342,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
         }
       }
 
-      wsApiController.send("finishDownload", respJson)
+      wsApiController.send("finishDownload", respJson, ignoreFailure = true)
     }
 
     val downloadTask: Result[Unit] = filesRegistry
@@ -360,13 +361,17 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
         case None =>
           wsApiController.send("finishDownload", parseUnsafe {
             s"""{ "success": false, "path": ${file.pathAsString.asJson}, "reason": "Version not found" }"""
-          })
+          }, ignoreFailure = true)
       }
       .recoverWith {
         case AppException.AccessDenied(_, _) =>
-          wsApiController.send("finishDownload", parseUnsafe {
-            s"""{ "success": false, "path": ${file.pathAsString.asJson}, "reason": "Access to the file was denied" }"""
-          })
+          wsApiController.send(
+            `type` = "finishDownload",
+            data = parseUnsafe {
+              s"""{ "success": false, "path": ${file.pathAsString.asJson}, "reason": "Access to the file was denied" }"""
+            },
+            ignoreFailure = true
+          )
       }
 
     tasksManager

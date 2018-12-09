@@ -66,7 +66,8 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
                                           Some(remoteFileVersion.size),
                                           Some(downloadedBytes),
                                           Some(speed)).asJson
-              )
+              ),
+              ignoreFailure = true
             )
             .runAsync {
               case Left(ex) => logger.debug("Could not send file download update", ex)
@@ -127,7 +128,8 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
                                                 Some(file.size),
                                                 Some(uploadedBytes),
                                                 Some(speed)).asJson
-                    )
+                    ),
+                    ignoreFailure = true
                   )
                   .runAsync {
                     case Left(ex) => logger.debug("Could not send file upload update", ex)

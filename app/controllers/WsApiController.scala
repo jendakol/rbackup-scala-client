@@ -12,16 +12,16 @@ import io.circe.generic.extras.auto._
 import io.circe.syntax._
 import io.circe.{Json, Printer}
 import javax.inject._
-import lib.App
 import lib.App._
 import lib.AppException.{ParsingFailure, WsException}
-import utils.CirceImplicits._
+import lib.{App, AppException}
 import monix.eval.Task
 import monix.execution.Scheduler
 import play.api.libs.circe.Circe
 import play.api.libs.streams.ActorFlow
 import play.api.mvc._
 import utils.AllowedWsApiOrigins
+import utils.CirceImplicits._
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -29,10 +29,10 @@ import scala.util.Try
 import scala.util.control.NonFatal
 
 @Singleton
-class WsApiController @Inject()(cc: ControllerComponents, protected override val allowedOrigins: AllowedWsApiOrigins)(
-    implicit system: ActorSystem,
-    mat: Materializer,
-    sch: Scheduler)
+class WsApiController @Inject()(
+    cc: ControllerComponents,
+    protected override val allowedOrigins: AllowedWsApiOrigins,
+    @Named("blocking") blockingScheduler: Scheduler)(implicit system: ActorSystem, mat: Materializer, sch: Scheduler)
     extends AbstractController(cc)
     with Circe
     with SameOriginCheck
@@ -73,7 +73,7 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
       }
   }
 
-  def send(wsMessage: WsMessage): lib.App.Result[Unit] = {
+  def send(wsMessage: WsMessage, ignoreFailure: Boolean): lib.App.Result[Unit] = {
     EitherT {
       Task {
         out.get() match {
@@ -82,16 +82,19 @@ class WsApiController @Inject()(cc: ControllerComponents, protected override val
               logger.trace(s"Sending WS message through $o: $wsMessage")
 
               o ! wsMessage.asJson.pretty(jsonPrinter)
+              ()
             }.toEither
               .leftMap(WsException("Could not send WS message", _))
 
           case None => Left(WsException("Could not send WS message - connection not available"))
         }
-      }
+      }.executeOnScheduler(blockingScheduler): Task[Either[AppException, Unit]]
+    }.recoverWith {
+      case NonFatal(e) if ignoreFailure => pureResult(())
     }
   }
 
-  def send(`type`: String, data: Json): lib.App.Result[Unit] = send(WsMessage(`type`, data))
+  def send(`type`: String, data: Json, ignoreFailure: Boolean): lib.App.Result[Unit] = send(WsMessage(`type`, data), ignoreFailure)
 
   def setEventCallback(callback: Event => App.Result[Unit]): Unit = {
     this.eventsCallback = Option(callback)
@@ -146,4 +149,5 @@ case class WsMessage(`type`: String, data: Json)
 sealed trait Event
 
 case object InitEvent extends Event
+
 case class PageInitEvent(page: String) extends Event

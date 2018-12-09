@@ -87,7 +87,9 @@ class TasksManager @Inject()(wsApiController: WsApiController)(implicit sch: Sch
     (for {
       runningTasks <- getAll.map(RunningTasks)
       _ = logger.debug(s"Sending running tasks: $runningTasks")
-      _ <- wsApiController.send(controllers.WsMessage(`type` = "runningTasks", data = runningTasks.toJson)).unwrapResult
+      _ <- wsApiController
+        .send(controllers.WsMessage(`type` = "runningTasks", data = runningTasks.toJson), ignoreFailure = true)
+        .unwrapResult
     } yield {
       ()
     }).doOnFinish {

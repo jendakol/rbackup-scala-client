@@ -18,12 +18,7 @@ class CloudFilesRegistry @Inject()(wsApiController: WsApiController, dao: Dao) {
 
   def reportBackedUpFilesList: Result[Unit] = {
     def sendWsUpdate(json: Json): Result[Unit] = {
-      wsApiController.send {
-        controllers.WsMessage(
-          `type` = "backedUpFilesUpdate",
-          data = json
-        )
-      }
+      wsApiController.send(controllers.WsMessage(`type` = "backedUpFilesUpdate", data = json), ignoreFailure = true)
     }
 
     for {

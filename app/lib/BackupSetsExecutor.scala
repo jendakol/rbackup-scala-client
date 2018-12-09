@@ -2,10 +2,11 @@ package lib
 
 import java.time.Instant
 
+import cats.syntax.all._
 import com.typesafe.scalalogging.StrictLogging
 import controllers.WsApiController
 import io.sentry.Sentry
-import javax.inject.Inject
+import javax.inject.{Inject, Named}
 import lib.App.{parseUnsafe, _}
 import lib.AppException.MultipleFailuresException
 import lib.db.{BackupSet, Dao}
@@ -18,6 +19,7 @@ class BackupSetsExecutor @Inject()(dao: Dao,
                                    filesHandler: FilesHandler,
                                    tasksManager: TasksManager,
                                    wsApiController: WsApiController,
+                                   @Named("blocking") blockingScheduler: Scheduler,
                                    settings: Settings)(implicit scheduler: Scheduler)
     extends StrictLogging {
 
@@ -39,7 +41,7 @@ class BackupSetsExecutor @Inject()(dao: Dao,
           case None => logger.info("Could not process backup sets - missing server session")
         }
       }).value
-        .runSyncUnsafe(Duration.Inf)
+        .runSyncUnsafe(Duration.Inf)(blockingScheduler, implicitly)
     }
   }
 
@@ -73,9 +75,11 @@ class BackupSetsExecutor @Inject()(dao: Dao,
         val nextTime = currentBs.lastExecution.map(_.plus(currentBs.frequency)).map(DateTimeFormatter.format).getOrElse("soon")
 
         wsApiController.send(
-          "backupSetDetailsUpdate",
-          parseUnsafe(
-            s"""{ "id": ${currentBs.id}, "type": "processing", "processing": ${currentBs.processing}, "last_execution": "$lastTime", "next_execution": "$nextTime"}""")
+          `type` = "backupSetDetailsUpdate",
+          data = parseUnsafe(
+            s"""{ "id": ${currentBs.id}, "type": "processing", "processing": ${currentBs.processing}, "last_execution": "$lastTime", "next_execution": "$nextTime"}"""
+          ),
+          ignoreFailure = true
         )
 
       case None => throw new IllegalStateException("Must NOT happen")
@@ -94,22 +98,27 @@ class BackupSetsExecutor @Inject()(dao: Dao,
           _ <- updateUi()
           _ <- wsApiController.send(
             "backupFinish",
-            parseUnsafe(s"""{ "success": true, "name": "${bs.name}"}""")
+            parseUnsafe(s"""{ "success": true, "name": "${bs.name}"}"""),
+            ignoreFailure = true
           )
         } yield {}).recoverWith {
           case ex: MultipleFailuresException =>
             logger.warn(s"Execution of backup set failed:\n${ex.causes.mkString("\n")}", ex)
-            wsApiController.send(
-              "backupFinish",
-              parseUnsafe(s"""{ "success": false, "name": "${bs.name}", "reason": "Multiple failures"}""")
-            )
+            dao.markAsProcessing(bs.id, processing = false) >>
+              wsApiController.send(
+                `type` = "backupFinish",
+                data = parseUnsafe(s"""{ "success": false, "name": "${bs.name}", "reason": "Multiple failures"}"""),
+                ignoreFailure = true
+              )
 
           case e =>
             logger.debug(s"Backup set execution failed ($bs)", e)
-            wsApiController.send(
-              "backupFinish",
-              parseUnsafe(s"""{ "success": false, "name": "${bs.name}", "reason": "Multiple failures"}""")
-            )
+            dao.markAsProcessing(bs.id, processing = false) >>
+              wsApiController.send(
+                `type` = "backupFinish",
+                data = parseUnsafe(s"""{ "success": false, "name": "${bs.name}", "reason": "Multiple failures"}"""),
+                ignoreFailure = true
+              )
         }
       }
   }

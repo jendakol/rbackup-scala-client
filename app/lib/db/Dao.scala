@@ -347,12 +347,12 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       }
   }
 
-  def markAsProcessing(backupSetId: Long): Result[Unit] = EitherT {
+  def markAsProcessing(backupSetId: Long, processing: Boolean = true): Result[Unit] = EitherT {
     Task {
       logger.debug(s"Updating backed up set processing flag in DB")
 
       DB.autoCommit { implicit session =>
-        sql"""update backup_sets set processing = true where id = ${backupSetId} """.update().apply()
+        sql"""update backup_sets set processing = ${processing} where id = ${backupSetId} """.update().apply()
       }
 
       Right(()): Either[AppException, Unit]

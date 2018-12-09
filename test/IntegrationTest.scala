@@ -10,7 +10,7 @@ import utils.Sha256
 import utils.TestOps._
 
 class IntegrationTest extends FunSuite {
-  private val connector = CloudConnector.fromConfig(ConfigFactory.empty())
+  private val connector = CloudConnector.fromConfig(ConfigFactory.empty(), global)
   private val rootUri = Uri.unsafeFromString("http://localhost:3369")
 
   test("read status") {
