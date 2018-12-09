@@ -37,6 +37,7 @@ libraryDependencies ++= Seq(
   "io.circe" %% "circe-generic-extras" % "0.10.1",
   "com.avast.metrics" %% "metrics-scala" % Versions.metricsVersion,
   "com.avast.metrics" % "metrics-statsd" % Versions.metricsVersion,
+  "io.sentry" % "sentry-logback" % "1.7.14",
   "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
   "org.scalatest" %% "scalatest" % "3.0.5" % "test",
   "org.mockito" % "mockito-core" % "2.23.0" % "test"

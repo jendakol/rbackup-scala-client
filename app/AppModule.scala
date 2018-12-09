@@ -2,6 +2,8 @@ import java.util.concurrent.Executors
 
 import com.avast.metrics.scalaapi.Monitor
 import com.typesafe.scalalogging.StrictLogging
+import io.sentry.Sentry
+import lib.App._
 import lib._
 import lib.db.{Dao, DbScheme}
 import lib.server.CloudConnector
@@ -27,6 +29,17 @@ class AppModule(environment: Environment, configuration: Configuration)
     with PropertiesConfiguration
     with StrictLogging {
   private val config = configuration.underlying
+
+  if (config.getBoolean("sentry.enabled")) {
+    logger.info("Sentry configured")
+    val sentry = Sentry.init(config.getString("sentry.dsn"))
+    sentry.setRelease(App.versionStr)
+    sentry.setEnvironment(config.getString("sentry.environment"))
+    sentry.setServerName(config.getString("deviceId"))
+    sentry.setDist(config.getString("sentry.dist"))
+  } else {
+    logger.info("Sentry NOT configured")
+  }
 
   DBs.setupAll()
 

@@ -5,6 +5,8 @@ import cats.syntax.either._
 import com.avast.metrics.scalaapi.Timer
 import com.typesafe.scalalogging.StrictLogging
 import io.circe.Json
+import io.sentry.Sentry
+import io.sentry.event.BreadcrumbBuilder
 import javax.inject.{Inject, Singleton}
 import lib.AppException.MultipleFailuresException
 import monix.eval.Task
@@ -179,6 +181,16 @@ object App {
     def fixPath: String = s.replace('\\', '/').replace('\\', '/')
   }
 
+  def leaveBreadcrumb(message: String, data: Map[String, Any] = Map.empty): Unit = {
+    Sentry.getContext.recordBreadcrumb(
+      data
+        .foldLeft(new BreadcrumbBuilder().setMessage(message)) {
+          case (builder, (key, value)) =>
+            builder.withData(key, value.toString)
+        }
+        .build()
+    )
+  }
 }
 
 case class ServerSession(rootUri: Uri, sessionId: String)

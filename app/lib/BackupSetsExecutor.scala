@@ -4,6 +4,7 @@ import java.time.Instant
 
 import com.typesafe.scalalogging.StrictLogging
 import controllers.WsApiController
+import io.sentry.Sentry
 import javax.inject.Inject
 import lib.App.{parseUnsafe, _}
 import lib.AppException.MultipleFailuresException
@@ -47,7 +48,7 @@ class BackupSetsExecutor @Inject()(dao: Dao,
 
     (for {
       sets <- dao.listBackupSetsToExecute()
-      _ = logger.info(s"Backup sets to be executed: ${sets.mkString("\n")}")
+      _ = logger.debug(s"Backup sets to be executed: ${sets.mkString("\n")}")
       _ <- sets.map(execute).sequentially
     } yield {
       sets
@@ -56,7 +57,10 @@ class BackupSetsExecutor @Inject()(dao: Dao,
         if (sets.nonEmpty)
           logger.info(s"All backup sets were processes successfully (${sets.map(_.name).mkString(", ")})")
 
-      case Left(ex: MultipleFailuresException) => logger.warn(s"Execution of backup sets failed:\n${ex.causes.mkString("\n")}", ex)
+      case Left(ex: MultipleFailuresException) =>
+        ex.causes.foreach(Sentry.capture)
+        logger.info(s"Execution of backup sets failed:\n${ex.causes.mkString("\n")}", ex)
+
       case Left(ex: AppException) => logger.warn("Execution of backup sets failed", ex)
       case Left(ex) => logger.error("Execution of backup sets failed", ex)
     }

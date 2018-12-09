@@ -8,8 +8,8 @@ import io.circe.generic.auto._
 import io.circe.syntax._
 import io.circe.{Json, Printer}
 import javax.inject.{Inject, Singleton}
-import lib.AppException
 import lib.commands.{Command, CommandExecutor}
+import lib.{App, AppException}
 import monix.execution.Scheduler
 import play.api.libs.circe.Circe
 import play.api.mvc.{AbstractController, Action, ControllerComponents}
@@ -29,6 +29,11 @@ class AjaxApiController @Inject()(cc: ControllerComponents, commandExecutor: Com
 
     logger.debug(s"Received AJAX request: ${jsonCommand.asJson.noSpaces}")
 
+    App.leaveBreadcrumb("Received AJAX request",
+                        Map(
+                          "data" -> jsonCommand.asJson.noSpaces
+                        ))
+
     decodeCommand(jsonCommand) match {
       case Right(command) =>
         commandExecutor
@@ -39,6 +44,7 @@ class AjaxApiController @Inject()(cc: ControllerComponents, commandExecutor: Com
               Ok {
                 val str = json.pretty(JsonPrinter)
                 logger.debug(s"Sending AJAX response to ${jsonCommand.name}: $str")
+                App.leaveBreadcrumb("AJAX response", Map("data" -> str))
                 str
               }.as("application/json")
 
@@ -46,12 +52,14 @@ class AjaxApiController @Inject()(cc: ControllerComponents, commandExecutor: Com
               logger.info(s"Error while executing the command ${jsonCommand.name}", cause)
               val resp = ErrorResponse(desc).asJson.pretty(JsonPrinter)
               logger.debug(s"Sending AJAX error response to ${jsonCommand.name}: $resp")
+              App.leaveBreadcrumb("AJAX error response", Map("data" -> resp))
               BadRequest(resp)
 
             case Left(err) =>
               logger.info(s"Error while executing the command ${jsonCommand.name}", err)
               val resp = ErrorResponse(err).asJson.pretty(JsonPrinter)
               logger.debug(s"Sending AJAX error response to ${jsonCommand.name}: $resp")
+              App.leaveBreadcrumb("AJAX error response", Map("data" -> resp))
               BadRequest(resp)
 
           }
@@ -60,6 +68,7 @@ class AjaxApiController @Inject()(cc: ControllerComponents, commandExecutor: Com
       case Left(err) =>
         val resp = err.asJson.pretty(JsonPrinter)
         logger.debug(s"Sending AJAX error response to ${jsonCommand.name}: $resp", err)
+        App.leaveBreadcrumb("AJAX error response", Map("data" -> resp))
         Future.successful(BadRequest(resp))
     }
   }
@@ -69,7 +78,9 @@ class AjaxApiController @Inject()(cc: ControllerComponents, commandExecutor: Com
 
     Command(name, data) match {
       case Some(command) => Right(command)
-      case None => Left(ErrorResponse("Command not found or is missing some data"))
+      case None =>
+        App.leaveBreadcrumb("Unparsable JSON command", Map("data" -> jsonCommand.asJson.noSpaces))
+        Left(ErrorResponse("Command not found or is missing some data"))
     }
   }
 }

@@ -9,6 +9,8 @@ import io.circe.Json
 import io.circe.generic.extras.auto._
 import io.circe.parser._
 import io.circe.syntax._
+import io.sentry.Sentry
+import io.sentry.event.UserBuilder
 import javax.inject.{Inject, Singleton}
 import lib.App._
 import lib.AppException.LoginRequired
@@ -69,19 +71,25 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       } yield resp
 
     case LoginCommand(host, username, password) =>
+      App.leaveBreadcrumb("Logging in")
       // TODO check the URL
       login(host, username, password)
 
     case LogoutCommand =>
+      App.leaveBreadcrumb("Logging out")
       settings.session(None).mapToJsonSuccess
 
     case CancelTaskCommand(id) =>
+      App.leaveBreadcrumb("Cancelling task", Map("id" -> id))
+
       tasksManager.cancel(id).map {
         case Some(rt) => parseUnsafe(s"""{ "success": true, "task": ${rt.toJson} }""")
         case None => parseUnsafe("""{ "success": false, "reason": "Task not found" }""")
       }
 
     case UploadCommand(path) =>
+      App.leaveBreadcrumb("Manual upload", Map("path" -> path))
+
       withSession { implicit session =>
         val file = File(path)
 
@@ -91,6 +99,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       }
 
     case DownloadCommand(path, versionId) =>
+      App.leaveBreadcrumb("Download", Map("path" -> path, "versionId" -> versionId))
       logger.debug(s"Downloading $path with versionId $versionId")
 
       withSession { implicit session =>
@@ -98,9 +107,12 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       }
 
     case BackedUpFileListCommand =>
+      App.leaveBreadcrumb("Getting backed-up files list")
       backedUpList
 
     case BackupSetsListCommand =>
+      App.leaveBreadcrumb("Listing backup sets")
+
       dao.listAllBackupSets().map { bss =>
         val sets = bss.map { bs =>
           val lastTime = bs.lastExecution.map(DateTimeFormatter.format).getOrElse("never")
@@ -114,11 +126,15 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
       }
 
     case BackupSetDetailsCommand(id) =>
+      App.leaveBreadcrumb("Requesting backup set detail", Map("id" -> id))
+
       dao.listFilesInBackupSet(id).map { files =>
         parseUnsafe(s"""{"success": true, "data": {"files": ${files.map(_.pathAsString).asJson}}}""")
       }
 
     case BackupSetExecuteCommand(id) =>
+      App.leaveBreadcrumb("Requesting backup set execution", Map("id" -> id))
+
       withSession { implicit session =>
         for {
           bs <- dao.getBackupSet(id)
@@ -128,10 +144,9 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
         }
       }
 
-    case DirListCommand(path) =>
-      dirList(path)
-
     case BackupSetFilesUpdateCommand(id, files) =>
+      App.leaveBreadcrumb("Updating backup set files", Map("files" -> files))
+
       for {
         _ <- updateBackupSetFilesList(id, files)
         currentFiles <- dao.listFilesInBackupSet(id)
@@ -141,12 +156,20 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
         )
       } yield JsonSuccess
 
+    case DirListCommand(path) =>
+      App.leaveBreadcrumb("Listing dir")
+      dirList(path)
+
     case LoadSettingsCommand =>
+      App.leaveBreadcrumb("Loading settings")
+
       settings.getList.map { map =>
         parseUnsafe(s"""{"success": true, "data": ${map.asJson} }""")
       }
 
     case SaveSettingsCommand(setts) =>
+      App.leaveBreadcrumb("Updating settings", Map("settings" -> setts))
+
       logger.debug("Updated settings: " + setts)
 
       settings.saveList(setts).mapToJsonSuccess
@@ -216,10 +239,12 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
         cloudConnector.login(uri, deviceId, username, password).flatMap {
           case LoginResponse.SessionCreated(sessionId) =>
             logger.info("Session on backend created")
+            Sentry.getContext.setUser(new UserBuilder().setUsername(username).setId(sessionId.sessionId).build())
             stateManager.login(sessionId).mapToJsonSuccess
 
           case LoginResponse.SessionRecovered(sessionId) =>
             logger.info("Session on backend restored")
+            Sentry.getContext.setUser(new UserBuilder().setUsername(username).setId(sessionId.sessionId).build())
             stateManager.login(sessionId).mapToJsonSuccess
 
           case LoginResponse.Failed =>

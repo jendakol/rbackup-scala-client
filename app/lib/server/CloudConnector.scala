@@ -40,6 +40,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
 
   def registerAccount(rootUri: Uri, username: String, password: String): Result[RegistrationResponse] = {
     logger.debug(s"Creating registration for username $username")
+    App.leaveBreadcrumb("Registering", Map("username" -> username))
 
     exec(plainRequestToHost(Method.GET, rootUri, "account/register", Map("username" -> username, "password" -> password))) {
       case ServerResponse(Status.Created, Some(json)) => json.as[RegistrationResponse.Created].toResult
@@ -49,6 +50,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
 
   def login(rootUri: Uri, deviceId: String, username: String, password: String): Result[LoginResponse] = {
     logger.debug(s"Logging device $deviceId with username $username")
+    App.leaveBreadcrumb("Logging in", Map("uri" -> rootUri, "username" -> username))
 
     val request =
       plainRequestToHost(Method.GET, rootUri, "account/login", Map("device_id" -> deviceId, "username" -> username, "password" -> password))
@@ -65,6 +67,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
 
   def upload(file: File)(callback: (Long, Double, Boolean) => Unit)(implicit session: ServerSession): Result[UploadResponse] = {
     logger.debug(s"Uploading $file")
+    App.leaveBreadcrumb("Uploading", Map("file" -> file))
 
     stream("upload", file, callback, Map("file_path" -> file.path.toAbsolutePath.toString)) {
       case ServerResponse(Status.Ok, Some(json)) => json.as[RemoteFile].toResult.map(UploadResponse.Uploaded)
@@ -75,6 +78,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
   def download(fileVersion: RemoteFileVersion, dest: File)(callback: (Long, Double, Boolean) => Unit)(
       implicit session: ServerSession): Result[DownloadResponse] = EitherT {
     logger.debug(s"Downloading file $fileVersion")
+    App.leaveBreadcrumb("Downloading", Map("file" -> fileVersion))
 
     httpClient
       .fetch(authenticatedRequest(Method.GET, "download", Map("file_version_id" -> fileVersion.version.toString))) {
@@ -89,6 +93,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
 
   def listFiles(specificDevice: Option[DeviceId])(implicit session: ServerSession): Result[ListFilesResponse] = {
     logger.debug(s"Getting files list for device $specificDevice")
+    App.leaveBreadcrumb("Getting files list")
 
     exec(authenticatedRequest(Method.GET, "list/files", specificDevice.map("device_id" -> _.value).toMap)) {
       case ServerResponse(Status.Ok, Some(json)) => json.as[Seq[RemoteFile]].toResult.map(FilesList)
@@ -101,6 +106,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
 
   def removeFile(id: Long)(implicit session: ServerSession): Result[RemoveFileResponse] = {
     logger.debug(s"Removing file version with ID $id")
+    App.leaveBreadcrumb("Removing file", Map("id" -> id))
 
     exec(authenticatedRequest(Method.DELETE, "remove/file", Map("file_id" -> id.toString))) {
       case ServerResponse(Status.Ok, _) => pureResult(RemoveFileResponse.Success)
@@ -112,6 +118,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
 
   def removeFileVersion(id: Long)(implicit session: ServerSession): Result[RemoveFileVersionResponse] = {
     logger.debug(s"Removing file version with ID $id")
+    App.leaveBreadcrumb("Removing file version", Map("id" -> id))
 
     exec(authenticatedRequest(Method.DELETE, "remove/fileVersion", Map("file_version_id" -> id.toString))) {
       case ServerResponse(Status.Ok, _) => pureResult(RemoveFileVersionResponse.Success)
