@@ -51,16 +51,19 @@ class AppModule(environment: Environment, configuration: Configuration)
     bindConfig(config.root(), "")(binder())
 
     val executorService = Executors.newCachedThreadPool()
+
     implicit val scheduler: Scheduler = Scheduler(
       executor = Executors.newScheduledThreadPool(4),
-      ec = ExecutionContext.fromExecutorService(executorService)
+      ec = ExecutionContext.fromExecutorService(Executors.newWorkStealingPool(16))
     )
+
+    val blockingScheduler = Scheduler.io()
 
     val rootMonitor = Monitor.noOp() // TODO
 
     bind[AllowedWsApiOrigins].toInstance(AllowedWsApiOrigins(config.getStringList("allowedWsApiOrigins").asScala))
 
-    val cloudConnector = CloudConnector.fromConfig(config.getConfig("cloudConnector"))
+    val cloudConnector = CloudConnector.fromConfig(config.getConfig("cloudConnector"), blockingScheduler)
     val dao = new Dao(executorService)
     val settings = new Settings(dao)
     val stateManager = new StateManager(DeviceId(config.getString("deviceId")), cloudConnector, dao, settings)
@@ -74,13 +77,15 @@ class AppModule(environment: Environment, configuration: Configuration)
       new GithubConnector(
         Http1Client[Task]().runSyncUnsafe(Duration.Inf),
         Uri.unsafeFromString(config.getString("updater.releasesUrl")),
-        App.version
+        App.version,
+        blockingScheduler
       )
     }
 
     bind[Monitor].annotatedWithName("FilesHandler").toInstance(rootMonitor.named("fileshandler"))
 
     bind[Scheduler].toInstance(scheduler)
+    bind[Scheduler].annotatedWithName("blocking").toInstance(blockingScheduler)
 
     bindServiceUpdater()
     bind[App].asEagerSingleton()

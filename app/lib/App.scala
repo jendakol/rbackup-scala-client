@@ -123,6 +123,12 @@ object App {
     }
   }
 
+  implicit class TaskOps[A](val ta: Task[A]) extends AnyVal {
+    def executeOnScheduler(sch: Scheduler): Task[A] = {
+      ta.executeOn(sch).asyncBoundary
+    }
+  }
+
   implicit class ResultSeqOps[A](val rs: Seq[Result[A]]) extends AnyVal {
     def sequentially: Result[Seq[A]] = EitherT {
       Task.sequence(rs.map(_.value)).map(_.collectPartition).map {

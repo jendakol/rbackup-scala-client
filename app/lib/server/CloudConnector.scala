@@ -34,7 +34,8 @@ import utils.{FileCopier, InputStreamWithSha256, StatsInputStream, StatsOutputSt
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
-class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Scheduler) extends StrictLogging {
+class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler: Scheduler)(implicit scheduler: Scheduler)
+    extends StrictLogging {
 
   // TODO monitoring
 
@@ -236,14 +237,17 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, scheduler: Schedu
           Task {
             if (dest.exists) dest.delete()
             wrapWithStats(dest.newOutputStream(), callback(_, _, false))
-          }.flatMap {
+          }.executeOnScheduler(blockingScheduler)
+            .flatMap {
               case (fileOs, canc) =>
                 resp.body.chunks
-                  .map { bytes =>
-                    val bis = new ByteArrayInputStream(bytes.toArray)
-                    val copied = fileCopier.copy(bis, fileOs)
-                    bis.close()
-                    copied
+                  .evalMap { bytes =>
+                    Task {
+                      val bis = new ByteArrayInputStream(bytes.toArray)
+                      val copied = fileCopier.copy(bis, fileOs)
+                      bis.close()
+                      copied
+                    }.executeOnScheduler(blockingScheduler)
                   }
                   .compile
                   .toVector
@@ -375,11 +379,11 @@ object CloudConnector {
     fieldMapping = ConfigFieldMapping(CamelCase, CamelCase)
   )
 
-  def fromConfig(config: Config)(implicit sch: Scheduler): CloudConnector = {
+  def fromConfig(config: Config, blockingScheduler: Scheduler)(implicit sch: Scheduler): CloudConnector = {
     val conf = pureconfig.loadConfigOrThrow[CloudConnectorConfiguration](config.withFallback(DefaultConfig))
     val httpClient: Client[Task] = Await.result(Http1Client[Task](conf.toBlazeConfig.copy(executionContext = sch)).runAsync, Duration.Inf)
 
-    new CloudConnector(httpClient, conf.chunkSize, sch)
+    new CloudConnector(httpClient, conf.chunkSize, blockingScheduler)
   }
 }
 

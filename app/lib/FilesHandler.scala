@@ -4,6 +4,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 import better.files.File
 import cats.data.EitherT
+import cats.effect.Effect
 import com.avast.metrics.scalaapi.Monitor
 import com.typesafe.scalalogging.StrictLogging
 import controllers.{WsApiController, WsMessage}
@@ -11,7 +12,6 @@ import io.circe.generic.extras.auto._
 import io.circe.syntax._
 import javax.inject.{Inject, Named}
 import lib.App._
-import utils.CirceImplicits._
 import lib.db.{Dao, DbFile}
 import lib.server.serverapi.{DownloadResponse, RemoteFile, RemoteFileVersion, UploadResponse}
 import lib.server.{CloudConnector, CloudFilesRegistry}
@@ -19,6 +19,7 @@ import lib.settings.Settings
 import monix.eval.Task
 import monix.execution.Scheduler
 import monix.reactive.Observable
+import utils.CirceImplicits._
 import utils.ConfigProperty
 
 class FilesHandler @Inject()(cloudConnector: CloudConnector,
@@ -26,9 +27,10 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
                              wsApiController: WsApiController,
                              dao: Dao,
                              settings: Settings,
+                             @Named("blocking") blockingScheduler: Scheduler,
                              @ConfigProperty("fileHandler.parallelism") maxParallelism: Int,
                              @ConfigProperty("fileHandler.retries") retries: Int,
-                             @Named("FilesHandler") monitor: Monitor)(implicit sch: Scheduler)
+                             @Named("FilesHandler") monitor: Monitor)(implicit F: Effect[Task], sch: Scheduler)
     extends AutoCloseable
     with StrictLogging {
 
@@ -68,7 +70,7 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
             )
             .runAsync {
               case Left(ex) => logger.debug("Could not send file download update", ex)
-            }
+            }(blockingScheduler)
         }
         .doOnCancel(Task {
           logger.debug(s"Task was cancelled: download of ${dest.pathAsString}")
@@ -129,7 +131,7 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
                   )
                   .runAsync {
                     case Left(ex) => logger.debug("Could not send file upload update", ex)
-                  }
+                  }(blockingScheduler)
               }
               .doOnCancel(Task {
                 logger.debug(s"Task was cancelled: upload of ${file.pathAsString}")
@@ -208,24 +210,30 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
   }
 
   private def checkFileUpdated(file: File): Result[Boolean] = {
-    dao.getFile(file).map {
-      case Some(dbFile) if sameFile(file, dbFile) =>
-        logger.debug(s"File $file found in cache, is the same file -> nothing to do")
-        false
-
+    dao.getFile(file).flatMap {
       case Some(dbFile) =>
-        logger.debug(s"File $file found in cache with different content ($dbFile)")
-        true
+        EitherT.right {
+          sameFile(file, dbFile).map {
+            case true =>
+              logger.debug(s"File $file found in cache, is the same file -> nothing to do")
+              false
+            case false =>
+              logger.debug(s"File $file found in cache with different content ($dbFile)")
+              true
+          }
+        }
 
       case None =>
         logger.debug(s"File $file wasn't found in DB")
-        true
+        pureResult(true)
     }
   }
 
-  private def sameFile(file: File, dbFile: DbFile): Boolean = {
+  private def sameFile(file: File, dbFile: DbFile): Task[Boolean] = {
     logger.debug(s"Is it same file - ${file.lastModifiedTime} vs. ${dbFile.lastModified}")
-    dbFile.lastModified.toInstant == file.lastModifiedTime && dbFile.size == file.size
+    Task {
+      dbFile.lastModified.toInstant == file.lastModifiedTime && dbFile.size == file.size
+    }.executeOnScheduler(blockingScheduler)
   }
 
   private def withSemaphore[A](a: => Result[A]): Result[A] = EitherT {

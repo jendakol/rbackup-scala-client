@@ -5,9 +5,10 @@ import java.time.Instant
 
 import better.files.File
 import cats.data.EitherT
+import cats.effect.Effect
 import cats.syntax.all._
 import io.circe.Decoder
-import lib.App.Result
+import lib.App._
 import lib.AppException
 import lib.AppException._
 import monix.eval.Task
@@ -16,7 +17,9 @@ import org.http4s.client.Client
 import org.http4s.{Status, Uri}
 import updater.GithubConnector._
 
-class GithubConnector(httpClient: Client[Task], uri: Uri, appVersion: AppVersion)(implicit sch: Scheduler) {
+import scala.concurrent.ExecutionContext
+
+class GithubConnector(httpClient: Client[Task], uri: Uri, appVersion: AppVersion, blockingScheduler: Scheduler)(implicit F: Effect[Task]) {
   def checkUpdate: Result[Option[Release]] = {
     EitherT {
       httpClient.get(uri) { resp =>
@@ -43,11 +46,12 @@ class GithubConnector(httpClient: Client[Task], uri: Uri, appVersion: AppVersion
       httpClient
         .get(asset.browserDownloadUrl) { resp =>
           val file = File.temporaryFile("rbackup", s"update-${asset.name}").get
+          implicit val ec: ExecutionContext = blockingScheduler
 
           resp.body
             .through(fs2.io.writeOutputStreamAsync(Task {
               file.newOutputStream
-            }))
+            }.executeOnScheduler(blockingScheduler)))
             .compile
             .drain
             .map(_ => Right(file): Either[AppException, File])
