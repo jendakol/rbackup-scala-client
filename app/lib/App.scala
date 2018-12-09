@@ -82,6 +82,10 @@ object App {
       r.value.doOnCancel(callback)
     }
 
+    def doOnFinish(callback: Option[Throwable] => Task[Unit]): Result[A] = EitherT {
+      r.value.doOnFinish(callback)
+    }
+
     def unwrapResult: Task[A] = r.value.flatMap {
       case Right(value) => Task.now(value)
       case Left(t) => Task.raiseError(t)

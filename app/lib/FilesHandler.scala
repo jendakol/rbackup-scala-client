@@ -111,36 +111,49 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
         case true =>
           logger.debug(s"File $file updated (or settings override that), will be uploaded")
 
+          def sendProgressUpdate(uploadedBytes: Long, speed: Double, isFinal: Boolean): Unit = {
+            if (isFinal) {
+              logger.trace(s"Sending final progress update for $file upload")
+            } else {
+              logger.trace(s"Sending non-final progress update for $file upload: $uploadedBytes, $speed")
+            }
+
+            wsApiController
+              .send(
+                WsMessage(
+                  `type` = "fileTransferUpdate",
+                  data = FileProgressUpdate(file.pathAsString,
+                                            `type` = "Uploading",
+                                            if (isFinal) "done" else "uploading",
+                                            Some(file.size),
+                                            Some(uploadedBytes),
+                                            Some(speed)).asJson
+                ),
+                ignoreFailure = true
+              )
+              .runAsync {
+                case Left(ex) => logger.debug("Could not send file upload update", ex)
+              }(blockingScheduler)
+          }
+
           withSemaphore {
             logger.debug(s"Uploading ${transferringCnt.incrementAndGet()} files now")
 
             val attemptCounter = new AtomicInteger(0)
 
             cloudConnector
-              .upload(file) { (uploadedBytes, speed, isFinal) =>
-                wsApiController
-                  .send(
-                    WsMessage(
-                      `type` = "fileTransferUpdate",
-                      data = FileProgressUpdate(file.pathAsString,
-                                                `type` = "Uploading",
-                                                if (isFinal) "done" else "uploading",
-                                                Some(file.size),
-                                                Some(uploadedBytes),
-                                                Some(speed)).asJson
-                    ),
-                    ignoreFailure = true
-                  )
-                  .runAsync {
-                    case Left(ex) => logger.debug("Could not send file upload update", ex)
-                  }(blockingScheduler)
-              }
+              .upload(file)(sendProgressUpdate)
               .doOnCancel(Task {
+                sendProgressUpdate(0, 0, isFinal = true)
                 logger.debug(s"Task was cancelled: upload of ${file.pathAsString}")
                 uploadedFailedMeter.mark()
                 transferringCnt.decrementAndGet()
               })
               .restartIf(handleRetries(attemptCounter.incrementAndGet(), file))
+              .doOnFinish(_ =>
+                Task {
+                  sendProgressUpdate(0, 0, isFinal = true)
+              })
               .withResult {
                 case Right(UploadResponse.Uploaded(_)) =>
                   logger.debug(s"File ${file.pathAsString} uploaded")

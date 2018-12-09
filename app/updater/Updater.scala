@@ -50,6 +50,8 @@ class Updater @Inject()(connector: GithubConnector, serviceUpdater: ServiceUpdat
   }
 
   private def updateApp(release: Release): Result[Unit] = {
+    // TODO setting
+
     logger.info(s"Downloading update file for version ${release.tagName}")
 
     downloadUpdate(release).map { file =>
@@ -62,6 +64,8 @@ class Updater @Inject()(connector: GithubConnector, serviceUpdater: ServiceUpdat
 
       file.delete(true)
       logger.debug(s"Updater unzipped the update to $dirWithUpdate")
+
+      // TODO don't do it if task is running
 
       logger.info("Starting the update")
       serviceUpdater.restartAndReplace(dirWithUpdate)

@@ -194,7 +194,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
       EitherT
         .right[AppException] {
           Request[Task](
-            Method.POST,
+            method,
             uri
           ).withHeaders(
               data.headers.put(
@@ -213,23 +213,18 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
       request <- createRequest(rootUri, inputStream)
       result <- exec(request)(pf)
         .map { res => // cancel stats reporting and close the IS
-          logger.debug(s"End stats sending for ${file.pathAsString}, file was uploaded")
           fileStatsReporting.cancel()
           inputStream.close()
+          logger.debug(s"End stats sending for ${file.pathAsString}, file was uploaded")
           res
         }
         .doOnCancel(Task {
           logger.debug(s"End stats sending for ${file.pathAsString}, file upload was cancelled")
-          callback(file.size, 0, true) // send final/last stats
           fileStatsReporting.cancel()
           inputStream.close()
         })
     } yield {
-      val (_, speed) = cis.snapshot
-      logger.debug(s"File ${file.pathAsString} uploaded, sent finalizing stats to UI")
       fileStatsReporting.cancel()
-      callback(file.size, speed, true) // send final/last stats
-
       result
     }
   }
@@ -267,10 +262,6 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
                     fileOs.close() // all data has been transferred
                     canc.cancel()
 
-                    val (_, speed) = fileOs.snapshot
-                    logger.debug(s"File ${dest.pathAsString} downloaded, sent finalizing stats to UI")
-                    callback(fileVersion.size, speed, true) // send final/last stats
-
                     if (clh.length != transferred) {
                       Left(AppException
                         .InvalidResponseException(resp.status.code, "-stream-", s"Expected ${clh.length} B but got $transferred B"))
@@ -290,7 +281,6 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
                   }
                   .doOnCancel(Task {
                     logger.debug(s"End stats sending for ${dest.pathAsString}, file upload was cancelled")
-                    callback(dest.size, 0, true) // send final/last stats
                     canc.cancel()
                     fileOs.close()
                   })

@@ -20,7 +20,7 @@ class StatsInputStream(input: InputStream, clock: Clock = Clock.systemDefaultZon
 
     val unrolled = secondsStats.slice(secondIndex, 5) ++ secondsStats.slice(0, secondIndex - 1)
 
-    val speed = unrolled.zipWithIndex.map { case (b, i) => b * ((i + 1) / 10.0) }.sum / 1000.0
+    val speed = unrolled.zipWithIndex.map { case (b, i) => b * ((i + 1) / 10.0) }.sum / 1000.0 // in kBps
 
     stats.accumulateAndGet((0, speed), (oldData: (Long, Double), newData: (Long, Double)) => {
       (oldData._1, newData._2)

@@ -53,7 +53,7 @@
                         ? "Finishing..."
                         : (fileTransfer.speed > 1500
                             ? fileTransfer.type + " @ " + (Math.round(fileTransfer.speed / 100) / 10) + " MBps"
-                            : fileTransfer.type + " @ " + fileTransfer.speed + " kBps");
+                            : fileTransfer.type + " @ " + (Math.round(fileTransfer.speed * 10) / 10) + " kBps");
 
                     newData[key] = {
                         name: fileTransfer.name,
