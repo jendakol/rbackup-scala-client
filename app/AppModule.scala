@@ -93,6 +93,14 @@ class AppModule(environment: Environment, configuration: Configuration)
       case Right(_) => settings.initializing(false)
       case Left(err) => throw err
     }
+
+    // create backup set if there is none
+    (for {
+      bss <- dao.listAllBackupSets()
+      _ <- if (bss.isEmpty) dao.createBackupSet("Default") else pureResult(())
+    } yield {
+      ()
+    }).value.toIO.unsafeRunSync()
   }
 
   private def bindServiceUpdater(): Unit = {
