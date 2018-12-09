@@ -70,7 +70,13 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
     logger.debug(s"Uploading $file")
     App.leaveBreadcrumb("Uploading", Map("file" -> file))
 
-    stream("upload", file, callback, Map("file_path" -> file.path.toAbsolutePath.toString)) {
+    val params = Map(
+      "file_path" -> file.path.toAbsolutePath.toString,
+      "size" -> file.size.toString,
+      "mtime" -> file.lastModifiedTime.getEpochSecond.toString
+    )
+
+    stream(Method.PUT, "upload", file, callback, params) {
       case ServerResponse(Status.Ok, Some(json)) => json.as[RemoteFile].toResult.map(UploadResponse.Uploaded)
       case ServerResponse(Status.PreconditionFailed, _) => pureResult(UploadResponse.Sha256Mismatch)
     }
@@ -165,8 +171,12 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
       .putHeaders(http4s.Header("RBackup-Session-Pass", session.sessionId))
   }
 
-  private def stream[A](path: String, file: File, callback: (Long, Double, Boolean) => Unit, queryParams: Map[String, String] = Map.empty)(
-      pf: PartialFunction[ServerResponse, Result[A]])(implicit session: ServerSession): Result[A] = {
+  private def stream[A](method: Method,
+                        path: String,
+                        file: File,
+                        callback: (Long, Double, Boolean) => Unit,
+                        queryParams: Map[String, String] = Map.empty)(pf: PartialFunction[ServerResponse, Result[A]])(
+      implicit session: ServerSession): Result[A] = {
 
     def createRequest(rootUri: Uri, inputStream: InputStreamWithSha256): EitherT[Task, AppException, Request[Task]] = {
       val uri = path.split("/").foldLeft(rootUri)(_ / _).setQueryParams(queryParams.mapValues(Seq(_)))

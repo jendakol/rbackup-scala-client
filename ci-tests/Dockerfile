@@ -1,4 +1,4 @@
-FROM jendakol/rbackup:latest
+FROM jendakol/rbackup:0.1
 
 WORKDIR /
 COPY . .
