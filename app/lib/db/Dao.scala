@@ -1,7 +1,6 @@
 package lib.db
 
 import java.time.{Duration, ZonedDateTime}
-import java.util.concurrent.ExecutorService
 
 import better.files.File
 import cats.data
@@ -10,21 +9,20 @@ import com.typesafe.scalalogging.StrictLogging
 import io.circe.generic.extras.auto._
 import io.circe.parser._
 import io.circe.syntax._
-import lib.App.Result
+import lib.App._
 import lib.AppException
 import lib.AppException.DbException
-import lib.server.serverapi.RemoteFile
+import lib.db.Dao._
+import lib.server.serverapi.{RemoteFile, RemoteFileVersion}
 import monix.eval.Task
 import monix.execution.Scheduler
-import monix.execution.schedulers.SchedulerService
 import scalikejdbc._
 import utils.CirceImplicits._
 
 import scala.util.control.NonFatal
 
 //noinspection SqlNoDataSourceInspection
-class Dao(executor: ExecutorService) extends StrictLogging {
-  private val sch: SchedulerService = Scheduler(executor: ExecutorService)
+class Dao(blockingScheduler: Scheduler) extends StrictLogging {
 
   def getFile(file: File): Result[Option[DbFile]] = EitherT {
     Task {
@@ -37,8 +35,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
           sql"SELECT * FROM files WHERE path = ${path}".single().map(DbFile.apply).single().apply()
         }
       }: Either[AppException, Option[DbFile]]
-    }.executeOn(sch)
-      .asyncBoundary
+    }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Getting file", e))
       }
@@ -53,8 +50,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
           sql"SELECT * FROM files".map(DbFile.apply).list().apply()
         }
       }: Either[AppException, List[DbFile]]
-    }.executeOn(sch)
-      .asyncBoundary
+    }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Listing files", e))
       }
@@ -62,9 +58,11 @@ class Dao(executor: ExecutorService) extends StrictLogging {
 
   def newFile(discoveredFile: File, remoteFile: RemoteFile): Result[Unit] = EitherT {
     Task {
-      val fileSize = discoveredFile.size
-      val mtime = discoveredFile.lastModifiedTime
-      val path = discoveredFile.pathAsString
+      val lastVersion = getLastVersion(remoteFile)
+
+      val fileSize = lastVersion.size
+      val mtime = lastVersion.created
+      val path = remoteFile.originalName
       val remoteFileJson = remoteFile.asJson.noSpaces
 
       logger.debug(s"Saving '$discoveredFile' to DB (${remoteFile.id})")
@@ -79,8 +77,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       logger.debug(s"$discoveredFile saved")
 
       Right(()): Either[AppException, Unit]
-    }.executeOn(sch)
-      .asyncBoundary
+    }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Creating file", e))
       }
@@ -88,14 +85,10 @@ class Dao(executor: ExecutorService) extends StrictLogging {
 
   def saveRemoteFile(remoteFile: RemoteFile): Result[Unit] = data.EitherT {
     Task {
-      val lastVersion = remoteFile.versions
-        .sortBy(_.created.toEpochSecond)
-        .headOption
-        .getOrElse(throw new IllegalArgumentException("File with no versions"))
+      val lastVersion = getLastVersion(remoteFile)
 
       val fileSize = lastVersion.size
-
-      val mtime = lastVersion.created // TODO this it not mtime!!!
+      val mtime = lastVersion.created
       val path = remoteFile.originalName
       val remoteFileJson = remoteFile.asJson.noSpaces
 
@@ -111,8 +104,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       logger.debug(s"$remoteFile saved")
 
       Right(()): Either[AppException, Unit]
-    }.executeOn(sch)
-      .asyncBoundary
+    }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Creating file", e))
       }
@@ -120,10 +112,12 @@ class Dao(executor: ExecutorService) extends StrictLogging {
 
   def updateFile(file: File, remoteFile: RemoteFile): Result[Unit] = data.EitherT {
     Task {
-      val fileSize = file.size
-      val mtime = file.lastModifiedTime
+      val lastVersion = getLastVersion(remoteFile)
+
+      val fileSize = lastVersion.size
+      val mtime = lastVersion.created
+      val path = remoteFile.originalName
       val remoteFileJson = remoteFile.asJson.noSpaces
-      val path = file.pathAsString
 
       logger.debug(s"Updating $file in DB")
 
@@ -134,8 +128,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       }
 
       Right(()): Either[AppException, Unit]
-    }.executeOn(sch)
-      .asyncBoundary
+    }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Updating file", e))
       }
@@ -150,8 +143,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       }
 
       Right(()): Either[AppException, Unit]
-    }.executeOn(sch)
-      .asyncBoundary
+    }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Deleting file", e))
       }
@@ -166,7 +158,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       }
 
       Right(()): Either[AppException, Unit]
-    }.executeOn(sch)
+    }.executeOn(blockingScheduler)
       .asyncBoundary
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Deleting all files", e))
@@ -182,8 +174,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
           sql"SELECT value FROM settings WHERE key = ${key}".single().map(_.string("value")).single().apply()
         }
       }: Either[AppException, Option[String]]
-    }.executeOn(sch)
-      .asyncBoundary
+    }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Loading setting", e))
       }
@@ -198,8 +189,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       }
 
       Right(()): Either[AppException, Unit]
-    }.executeOn(sch)
-      .asyncBoundary
+    }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Updating setting", e))
       }
@@ -214,8 +204,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       }
 
       Right(()): Either[AppException, Unit]
-    }.executeOn(sch)
-      .asyncBoundary
+    }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Deleting setting", e))
       }
@@ -235,8 +224,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       logger.debug(s"$bs saved")
 
       Right(bs): Either[AppException, BackupSet]
-    }.executeOn(sch)
-      .asyncBoundary
+    }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Creating backup set", e))
       }
@@ -253,8 +241,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       logger.debug(s"Retrieved backup sets: $bss")
 
       Right(bss): Either[AppException, List[BackupSet]]
-    }.executeOn(sch)
-      .asyncBoundary
+    }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Listing backup sets", e))
       }
@@ -271,8 +258,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       logger.debug(s"Retrieved backup set: $bs")
 
       Right(bs): Either[AppException, Option[BackupSet]]
-    }.executeOn(sch)
-      .asyncBoundary
+    }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
         case NonFatal(e) => Left(DbException(s"Getting backup set ID $id", e))
       }
@@ -301,8 +287,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       }
 
       Right(()): Either[AppException, Unit]
-    }.executeOn(sch)
-      .asyncBoundary
+    }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Updating backup set files", e))
       }
@@ -324,8 +309,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       logger.debug(s"Retrieved backup set files: $files")
 
       Right(files): Either[AppException, List[File]]
-    }.executeOn(sch)
-      .asyncBoundary
+    }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Listing backup set files", e))
       }
@@ -340,8 +324,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       }
 
       Right(()): Either[AppException, Unit]
-    }.executeOn(sch)
-      .asyncBoundary
+    }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Updating backup set last execution time", e))
       }
@@ -356,8 +339,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       }
 
       Right(()): Either[AppException, Unit]
-    }.executeOn(sch)
-      .asyncBoundary
+    }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Updating backup set processing flag", e))
       }
@@ -372,8 +354,7 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       }
 
       Right(()): Either[AppException, Unit]
-    }.executeOn(sch)
-      .asyncBoundary
+    }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Resetting backup set processing flags", e))
       }
@@ -393,11 +374,19 @@ class Dao(executor: ExecutorService) extends StrictLogging {
       logger.debug(s"Retrieved backup sets to be executed: $sets")
 
       Right(sets): Either[AppException, List[BackupSet]]
-    }.executeOn(sch)
-      .asyncBoundary
+    }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Listing backup set files", e))
       }
+  }
+}
+
+object Dao {
+  def getLastVersion(remoteFile: RemoteFile): RemoteFileVersion = {
+    remoteFile.versions
+      .sortBy(_.version)
+      .lastOption
+      .getOrElse(throw new IllegalArgumentException("File with no versions"))
   }
 }
 

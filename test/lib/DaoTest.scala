@@ -1,10 +1,11 @@
 package lib
 
-import java.time.Duration
-import java.util.concurrent.Executors
+import java.time.{Duration, Instant, ZoneId, ZonedDateTime}
 
 import better.files.File
 import lib.db.{Dao, DbScheme}
+import lib.server.serverapi.{RemoteFile, RemoteFileVersion}
+import monix.execution.Scheduler
 import monix.execution.Scheduler.Implicits.global
 import org.scalatest.{BeforeAndAfterEach, FunSuite}
 import scalikejdbc.config.DBs
@@ -15,8 +16,25 @@ class DaoTest extends FunSuite with BeforeAndAfterEach {
 
   // TODO add all methods
 
+  test("getLastVersion") {
+    val time = ZonedDateTime.ofInstant(Instant.ofEpochMilli(123456789), ZoneId.systemDefault())
+
+    val rf = RemoteFile(
+      42,
+      "theDevice",
+      "c:\\theFile\\path",
+      Vector(
+        RemoteFileVersion(123, 456, randomHash, time.plusMinutes(12), time.plusMinutes(122)),
+        RemoteFileVersion(345, 456, randomHash, time, time.plusMinutes(1)),
+        RemoteFileVersion(234, 456, randomHash, time.plusMinutes(23), time.plusMinutes(233)),
+      )
+    )
+
+    assertResult(time)(Dao.getLastVersion(rf).created)
+  }
+
   test("insert and list backup set") {
-    val dao = new Dao(Executors.newCachedThreadPool())
+    val dao = new Dao(Scheduler.io())
 
     assertResult(List.empty)(dao.listAllBackupSets().unwrappedFutureValue)
     val bs = dao.createBackupSet("ahoj").unwrappedFutureValue
@@ -27,7 +45,7 @@ class DaoTest extends FunSuite with BeforeAndAfterEach {
   }
 
   test("update backup set files") {
-    val dao = new Dao(Executors.newCachedThreadPool())
+    val dao = new Dao(Scheduler.io())
 
     val bs = dao.createBackupSet("ahoj").unwrappedFutureValue
 
@@ -41,7 +59,7 @@ class DaoTest extends FunSuite with BeforeAndAfterEach {
   }
 
   test("markAsExecutedNow") {
-    val dao = new Dao(Executors.newCachedThreadPool())
+    val dao = new Dao(Scheduler.io())
 
     dao.createBackupSet("ahoj").unwrappedFutureValue
     val List(bs) = dao.listAllBackupSets().unwrappedFutureValue
@@ -59,7 +77,7 @@ class DaoTest extends FunSuite with BeforeAndAfterEach {
   }
 
   test("markAsProcessing") {
-    val dao = new Dao(Executors.newCachedThreadPool())
+    val dao = new Dao(Scheduler.io())
 
     dao.createBackupSet("ahoj").unwrappedFutureValue
     val List(bs) = dao.listAllBackupSets().unwrappedFutureValue
@@ -72,7 +90,7 @@ class DaoTest extends FunSuite with BeforeAndAfterEach {
   }
 
   test("listBackupSetsToExecute") {
-    val dao = new Dao(Executors.newCachedThreadPool())
+    val dao = new Dao(Scheduler.io())
 
     dao.createBackupSet("ahoj").unwrappedFutureValue
     dao.createBackupSet("ahoj2").unwrappedFutureValue

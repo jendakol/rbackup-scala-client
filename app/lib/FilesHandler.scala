@@ -244,10 +244,16 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
     }
   }
 
-  private def sameFile(file: File, dbFile: DbFile): Task[Boolean] = {
-    logger.debug(s"Is it same file - ${file.lastModifiedTime} vs. ${dbFile.lastModified}")
+  private[lib] def sameFile(file: File, dbFile: DbFile): Task[Boolean] = {
+    val dbSeconds = dbFile.lastModified.toEpochSecond
+    val mtimeSeconds = file.lastModifiedTime.getEpochSecond
+
+    logger.debug(
+      s"Is it same file ($file) - FILE ${file.lastModifiedTime}($mtimeSeconds) vs. DB ${dbFile.lastModified.toInstant}($dbSeconds)"
+    )
+
     Task {
-      dbFile.lastModified.toInstant == file.lastModifiedTime && dbFile.size == file.size
+      dbSeconds == mtimeSeconds && dbFile.size == file.size
     }.executeOnScheduler(blockingScheduler)
   }
 
@@ -258,36 +264,26 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
       case (_, Right(Right(res))) =>
         logger.trace(s"File transfer result $res, unlocking")
         semaphore.increment
-          .map(_ => logger.debug(s"Currently transferring ${transferringCnt.get()} files"))
+          .map(_ => logger.debug(s"Released, currently transferring ${transferringCnt.get()} files"))
 
       case (_, Right(Left(ae))) =>
         logger.trace(s"File transfer failed, unlocking", ae)
         semaphore.increment
-          .map(_ => logger.debug(s"Currently transferring ${transferringCnt.get()} files"))
+          .map(_ => logger.debug(s"Released, currently transferring ${transferringCnt.get()} files"))
 
       case (_, Left(Some(th))) =>
         logger.trace(s"File transfer failed, unlocking", th)
         semaphore.increment
-          .map(_ => logger.debug(s"Currently transferring ${transferringCnt.get()} files"))
+          .map(_ => logger.debug(s"Released, currently transferring ${transferringCnt.get()} files"))
 
       case (_, Left(None)) =>
         logger.trace(s"File transfer cancelled, unlocking")
         semaphore.increment
-          .map(_ => logger.debug(s"Currently transferring ${transferringCnt.get()} files"))
+          .map(_ => logger.debug(s"Released, currently transferring ${transferringCnt.get()} files"))
     }
   }
 
   override def close(): Unit = ()
-}
-
-private sealed trait FileHandlingResult
-
-private object FileHandlingResult {
-
-  case object Handled extends FileHandlingResult
-
-  case class ToBeUploaded(file: File) extends FileHandlingResult
-
 }
 
 private case class FileProgressUpdate(name: String,

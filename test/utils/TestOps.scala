@@ -12,6 +12,10 @@ object TestOps {
     Random.alphanumeric.take(length).mkString("")
   }
 
+  def randomHash: Sha256 = {
+    Sha256(Stream.continually(Random.nextInt(9)).take(64).mkString)
+  }
+
   implicit class TaskOps[A](val t: Task[A]) extends AnyVal {
     def futureValue(implicit s: Scheduler): A = t.toIO.unsafeRunSync()
   }

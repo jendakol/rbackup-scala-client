@@ -57,12 +57,14 @@ class IntegrationTest extends FunSuite {
 
     assertResult(1520)(version1.size)
     assertResult(Sha256(theFile.sha256))(version1.hash)
+    assertResult(theFile.lastModifiedTime)(version1.mtime.toInstant)
 
     // list files again - now contains the file
 
     val ListFilesResponse.FilesList(files1) = connector.listFiles(None).unwrappedFutureValue
     assertResult(Seq(remoteFile1))(files1)
     assertResult(theFile.pathAsString)(files1.head.originalName)
+    assertResult(theFile.lastModifiedTime)(files1.head.versions.head.mtime.toInstant)
 
     // upload again
 

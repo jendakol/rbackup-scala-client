@@ -24,7 +24,7 @@ import utils.AllowedWsApiOrigins
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration._
 
 class AppModule(environment: Environment, configuration: Configuration)
     extends ScalaModule
@@ -52,8 +52,6 @@ class AppModule(environment: Environment, configuration: Configuration)
   override def configure(): Unit = {
     bindConfig(config.root(), "")(binder())
 
-    val executorService = Executors.newCachedThreadPool()
-
     implicit val scheduler: Scheduler = Scheduler(
       executor = Executors.newScheduledThreadPool(4),
       ec = ExecutionContext.fromExecutorService(Executors.newWorkStealingPool(16))
@@ -69,7 +67,7 @@ class AppModule(environment: Environment, configuration: Configuration)
     bind[AllowedWsApiOrigins].toInstance(AllowedWsApiOrigins(config.getStringList("allowedWsApiOrigins").asScala))
 
     val cloudConnector = CloudConnector.fromConfig(config.getConfig("cloudConnector"), blockingScheduler)
-    val dao = new Dao(executorService)
+    val dao = new Dao(blockingScheduler)
     val settings = new Settings(dao)
     val stateManager = new StateManager(DeviceId(config.getString("deviceId")), cloudConnector, dao, settings)
 
@@ -86,6 +84,8 @@ class AppModule(environment: Environment, configuration: Configuration)
         blockingScheduler
       )
     }
+
+    bind[Duration].annotatedWithName("updaterCheckPeriod").toInstance(config.getDuration("updater.checkPeriod").toMillis.millis)
 
     bind[Monitor].annotatedWithName("FilesHandler").toInstance(rootMonitor.named("fileshandler"))
 
