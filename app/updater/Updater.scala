@@ -4,7 +4,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 import better.files.File
 import com.typesafe.scalalogging.StrictLogging
-import javax.inject.{Inject, Singleton}
+import javax.inject.{Inject, Named, Singleton}
 import lib.App._
 import lib.AppException.UpdateException
 import monix.execution.{Cancelable, Scheduler}
@@ -14,13 +14,16 @@ import scala.concurrent.duration._
 import scala.util.control.NonFatal
 
 @Singleton
-class Updater @Inject()(connector: GithubConnector, serviceUpdater: ServiceUpdater)(implicit scheduler: Scheduler) extends StrictLogging {
+class Updater @Inject()(connector: GithubConnector,
+                        serviceUpdater: ServiceUpdater,
+                        @Named("updaterCheckPeriod") checkPeriod: FiniteDuration)(implicit scheduler: Scheduler)
+    extends StrictLogging {
   private val updateRunning = new AtomicBoolean(false)
 
   def start: Cancelable = {
     logger.info("Started updates checker")
 
-    scheduler.scheduleAtFixedRate(1.seconds, 10.seconds) {
+    scheduler.scheduleAtFixedRate(1.seconds, checkPeriod) {
       connector.checkUpdate
         .flatMap {
           case Some(rel) =>
