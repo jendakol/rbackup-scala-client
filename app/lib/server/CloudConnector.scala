@@ -2,7 +2,7 @@ package lib.server
 
 import java.io.{ByteArrayInputStream, InputStream, OutputStream}
 import java.net.ConnectException
-import java.nio.file.AccessDeniedException
+import java.nio.file.{AccessDeniedException, Files}
 import java.util.concurrent.TimeoutException
 
 import better.files.File
@@ -73,7 +73,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
     val params = Map(
       "file_path" -> file.path.toAbsolutePath.toString,
       "size" -> file.size.toString,
-      "mtime" -> file.lastModifiedTime.getEpochSecond.toString
+      "mtime" -> Files.getLastModifiedTime(file.path).toMillis.toString
     )
 
     stream(Method.PUT, "upload", file, callback, params) {
@@ -307,7 +307,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
         resp.bodyAsText.compile.toList
           .map(parts => if (parts.isEmpty) None else Some(parts.mkString))
           .flatMap { str =>
-            logger.trace(s"Cloud response body: $str")
+            logger.debug(s"Cloud response body: $str")
 
             val jsonResult = str.map(io.circe.parser.parse) match {
               case Some(Right(json)) => pureResult(Some(json))
