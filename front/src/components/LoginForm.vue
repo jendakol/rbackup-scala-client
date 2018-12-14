@@ -106,11 +106,13 @@
                     }, "Logging in", (resp) => new Promise((success, error) => {
                         this.formsDisabled = false;
 
-                        if (resp.success) {
+                        if (resp.success === true) {
                             success("Login successful!");
                             this.$emit("login")
-                        } else {
+                        } else if (resp.success === false) {
                             error("Login unsuccessful")
+                        } else {
+                            error("Login unsuccessful: " + resp.error)
                         }
                     })
                 );
@@ -142,12 +144,13 @@
                         this.formsDisabled = false;
                         this.selectedTab = 0; // switch to login
 
-                        if (resp.success) {
+                        if (resp.success === true) {
                             success("Account registered, go ahead and login!");
                             this.loginForm = this.registerForm
-
+                        } else if (resp.success === false) {
+                            error("Account NOT registered, because: " + resp.reason)
                         } else {
-                            error("Account NOT registered, because: " + t.reason)
+                            error("Account NOT registered, because: " + resp.error)
                         }
                     })
                 )

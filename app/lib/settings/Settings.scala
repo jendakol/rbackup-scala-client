@@ -4,15 +4,18 @@ import java.time.Instant
 import java.util.concurrent.atomic.AtomicReference
 
 import cats.syntax.all._
+import com.typesafe.scalalogging.StrictLogging
 import io.circe.generic.extras.auto._
 import lib.App._
-import utils.CirceImplicits._
 import lib.ServerSession
 import lib.db.Dao
 import lib.settings.Settings._
 import org.apache.commons.lang3.StringUtils
+import utils.CirceImplicits._
 
-class Settings(dao: Dao) {
+import scala.util.control.NonFatal
+
+class Settings(dao: Dao) extends StrictLogging {
   private val _initializing = new AtomicReference(true)
 
   def initializing: Boolean = _initializing.get
@@ -73,16 +76,24 @@ class Settings(dao: Dao) {
       .flatMap {
         case Some(v) => pureResult(Some(v))
         case None =>
-          get(key).map(_.map { v =>
-            val sv = conv(v)
-            ref.set(Option(sv))
-            sv
+          get(key).map(_.flatMap { v =>
+            try {
+              val sv = conv(v)
+              ref.set(Option(sv))
+              Some(sv)
+            } catch {
+              case NonFatal(e) =>
+                logger.info(s"Could not load the '$key' setting, defaulting to None", e)
+                ref.set(None)
+                None
+            }
           })
       }
   }
 
   private def save[A](key: String, ref: => AtomicReference[Option[A]], v: A, conv: A => String): Result[Unit] = {
     val value = conv(v)
+    logger.debug(s"Updating setting value: $key -> $v")
     set(key, value) >>
       pureResult {
         ref.set(Some(v))

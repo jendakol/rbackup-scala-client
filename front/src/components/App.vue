@@ -48,13 +48,31 @@
                 return axios.post("http://" + this.hostUrl + "/ajax-api", {name: name, data: data})
                     .then(t => {
                         return t.data;
-                    }).catch(error => {
-                        console.log(error);
                     })
             }, asyncActionWithNotification(actionName, data, initialText, responseToPromise) {
                 this.$snotify.async(initialText, () => new Promise((resolve, reject) => {
                     this.ajax(actionName, data).then(resp => {
                         responseToPromise(resp)
+                            .then(text => {
+                                resolve({
+                                    body: text,
+                                    config: {
+                                        closeOnClick: true,
+                                        timeout: 3500
+                                    }
+                                })
+                            }, errText => reject({
+                                body: errText,
+                                config: {
+                                    // TODO HTML formatting
+                                    // html: '<div class="snotifyToast__title"><b>Html Bold Title</b></div><div class="snotifyToast__body"><i>Html</i> <b>toast</b> <u>content</u></div>',
+                                    closeOnClick: true,
+                                    timeout: 3500
+                                }
+                            }))
+                    }).catch(err => {
+                        console.log(JSON.stringify(err.response.data));
+                        responseToPromise(err.response.data)
                             .then(text => {
                                 resolve({
                                     body: text,

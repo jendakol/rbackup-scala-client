@@ -1,7 +1,7 @@
 <template>
     <v-container fluid>
         <v-icon>fa fa-plug</v-icon>
-        <span style="color: green;">Connected</span> to RBackup server @ {{ this.connectedHost }}
+        <span style="color: green;">Connected</span> to RBackup server (v{{ this.serverVersion }}) @ {{ this.connectedHost }}
     </v-container>
 </template>
 
@@ -15,7 +15,8 @@
         },
         data() {
             return {
-                connectedHost: ""
+                connectedHost: "",
+                serverVersion: ""
             }
         },
         created() {
@@ -35,6 +36,7 @@
                 this.ajax("status").then(resp => {
                     if (resp.success && resp.status === "READY") {
                         this.connectedHost = resp.data.host;
+                        this.serverVersion = resp.data.serverVersion;
                     }
                 })
             }

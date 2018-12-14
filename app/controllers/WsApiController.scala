@@ -51,7 +51,7 @@ class WsApiController @Inject()(
           case NonFatal(e) => logger.warn("Could not send WS message", e)
         }
 
-      case None => logger.debug("Could not send WS message - connection not available")
+      case None => logger.trace("Could not send WS heartbeat - connection not available")
     }
   }
 

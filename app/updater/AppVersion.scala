@@ -11,6 +11,8 @@ case class AppVersion(major: Int, minor: Int, build: Int, suffix: Option[String]
   def <(other: AppVersion): Boolean = {
     ordering.lt(this, other)
   }
+
+  override val toString: String = s"$major.$minor.$build${suffix.map("-" + _).getOrElse("")}"
 }
 
 object AppVersion {

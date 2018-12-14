@@ -203,6 +203,6 @@ object App {
   }
 }
 
-case class ServerSession(rootUri: Uri, sessionId: String)
+case class ServerSession(rootUri: Uri, sessionId: String, serverVersion: AppVersion)
 
 case class DeviceId(value: String) extends AnyVal

@@ -28,6 +28,7 @@ import org.http4s.multipart._
 import org.http4s.{Headers, Method, Request, Response, Status, Uri}
 import pureconfig.modules.http4s.uriReader
 import pureconfig.{CamelCase, ConfigFieldMapping, ProductHint}
+import updater.AppVersion
 import utils.CirceImplicits._
 import utils.{FileCopier, InputStreamWithSha256, StatsInputStream, StatsOutputStream}
 
@@ -56,13 +57,21 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
     val request =
       plainRequestToHost(Method.GET, rootUri, "account/login", Map("device_id" -> deviceId, "username" -> username, "password" -> password))
 
-    exec(request) {
-      case ServerResponse(Status.Created, Some(json)) =>
-        json.hcursor.get[String]("session_id").toResult[String].map(sid => LoginResponse.SessionCreated(ServerSession(rootUri, sid)))
-      case ServerResponse(Status.Ok, Some(json)) =>
-        json.hcursor.get[String]("session_id").toResult[String].map(sid => LoginResponse.SessionRecovered(ServerSession(rootUri, sid)))
-      case ServerResponse(Status.Unauthorized, _) =>
-        pureResult(LoginResponse.Failed)
+    status(rootUri).flatMap { status =>
+      exec(request) {
+        case ServerResponse(Status.Created, Some(json)) =>
+          json.hcursor
+            .get[String]("session_id")
+            .toResult[String]
+            .map(sid => LoginResponse.SessionCreated(ServerSession(rootUri, sid, status.version)))
+        case ServerResponse(Status.Ok, Some(json)) =>
+          json.hcursor
+            .get[String]("session_id")
+            .toResult[String]
+            .map(sid => LoginResponse.SessionRecovered(ServerSession(rootUri, sid, status.version)))
+        case ServerResponse(Status.Unauthorized, _) =>
+          pureResult(LoginResponse.Failed)
+      }
     }
   }
 
@@ -133,15 +142,15 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
     }
   }
 
-  def status(implicit session: ServerSession): Result[String] = {
+  def status(implicit session: ServerSession): Result[StatusResponse] = {
     status(session.rootUri)
   }
 
-  def status(rootUri: Uri): Result[String] = {
+  def status(rootUri: Uri): Result[StatusResponse] = {
     logger.debug("Requesting status from server")
 
     exec(plainRequestToHost(Method.GET, rootUri, "status")) {
-      case ServerResponse(Status.Ok, Some(json)) => json.hcursor.get[String]("status").toResult
+      case ServerResponse(Status.Ok, Some(json)) => json.as[StatusResponse].toResult
     }
   }
 
@@ -369,6 +378,8 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
 }
 
 case class ServerResponse(status: Status, body: Option[Json])
+
+case class StatusResponse(status: String, version: AppVersion)
 
 object CloudConnector {
   private val RootConfigKey = "cloudConnectorDefaults"

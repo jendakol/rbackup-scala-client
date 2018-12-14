@@ -17,6 +17,7 @@ import lib.client.clientapi.FileTreeNode.{Directory, RegularFile}
 import lib.server.serverapi
 import lib.server.serverapi.{RemoteFile, RemoteFileVersion}
 import org.http4s.Uri
+import updater.AppVersion
 
 object clientapi extends StrictLogging {
 
@@ -33,9 +34,9 @@ object clientapi extends StrictLogging {
       val data: Json = Json.Null
     }
 
-    case class Ready(rootUri: Uri) extends ClientStatus {
+    case class Ready(rootUri: Uri, serverVersion: AppVersion) extends ClientStatus {
       val name: String = "READY"
-      val data: Json = parseUnsafe(s"""{ "host": "$rootUri"}""")
+      val data: Json = parseUnsafe(s"""{ "host": "$rootUri", "serverVersion":"$serverVersion"}""")
     }
 
     case object Disconnected extends ClientStatus {
