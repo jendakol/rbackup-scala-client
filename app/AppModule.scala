@@ -16,6 +16,7 @@ import net.codingwell.scalaguice.ScalaModule
 import org.apache.commons.lang3.SystemUtils
 import org.http4s.Uri
 import org.http4s.client.blaze.Http1Client
+import org.http4s.client.middleware.FollowRedirect
 import play.api.{Configuration, Environment}
 import scalikejdbc._
 import scalikejdbc.config.DBs
@@ -78,14 +79,14 @@ class AppModule(environment: Environment, configuration: Configuration)
 
     bind[GithubConnector].toInstance {
       new GithubConnector(
-        Http1Client[Task]().runSyncUnsafe(Duration.Inf),
+        FollowRedirect(5)(Http1Client[Task]().runSyncUnsafe(Duration.Inf)),
         Uri.unsafeFromString(config.getString("updater.releasesUrl")),
         App.version,
         blockingScheduler
       )
     }
 
-    bind[Duration].annotatedWithName("updaterCheckPeriod").toInstance(config.getDuration("updater.checkPeriod").toMillis.millis)
+    bind[FiniteDuration].annotatedWithName("updaterCheckPeriod").toInstance(config.getDuration("updater.checkPeriod").toMillis.millis)
 
     bind[Monitor].annotatedWithName("FilesHandler").toInstance(rootMonitor.named("fileshandler"))
 

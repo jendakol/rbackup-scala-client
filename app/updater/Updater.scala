@@ -3,10 +3,12 @@ package updater
 import java.util.concurrent.atomic.AtomicBoolean
 
 import better.files.File
+import cats.data.EitherT
 import com.typesafe.scalalogging.StrictLogging
 import javax.inject.{Inject, Named, Singleton}
 import lib.App._
 import lib.AppException.UpdateException
+import monix.eval.Task
 import monix.execution.{Cancelable, Scheduler}
 import updater.GithubConnector.Release
 
@@ -21,7 +23,7 @@ class Updater @Inject()(connector: GithubConnector,
   private val updateRunning = new AtomicBoolean(false)
 
   def start: Cancelable = {
-    logger.info("Started updates checker")
+    logger.info(s"Started updates checker, will check every $checkPeriod")
 
     scheduler.scheduleAtFixedRate(1.seconds, checkPeriod) {
       connector.checkUpdate
@@ -36,12 +38,23 @@ class Updater @Inject()(connector: GithubConnector,
             logger.debug("Didn't find update for current version")
             pureResult(())
         }
+        .recoverWith {
+          case ae =>
+            updateRunning.set(false)
+            logger.warn("Could not download update", ae)
+            EitherT.leftT[Task, Unit](ae)
+        }
         .value
         .onErrorRecover {
           case e: java.net.ConnectException =>
             updateRunning.set(false)
-            logger.warn("Could not check for update", e)
+            logger.warn("Could not download update", e)
             Left(UpdateException("Could not update the app", e))
+
+          case e: UpdateException =>
+            updateRunning.set(false)
+            logger.warn("Could not download update", e)
+            Left(e)
 
           case NonFatal(e) =>
             updateRunning.set(false)
@@ -61,7 +74,7 @@ class Updater @Inject()(connector: GithubConnector,
       val dirWithUpdate = file.unzipTo(File(s"update-${release.tagName}"))
       // the data are in subfolder, move them up
       dirWithUpdate.children.next().children.foreach { sub =>
-        logger.debug(s"Moving $sub to $dirWithUpdate")
+        logger.trace(s"Moving $sub to $dirWithUpdate")
         sub.moveToDirectory(dirWithUpdate)
       }
 
@@ -77,7 +90,8 @@ class Updater @Inject()(connector: GithubConnector,
 
   private def downloadUpdate(release: Release): Result[File] = {
     release.assets.find(_.name == s"rbackup-client-${release.tagName}.zip") match {
-      case Some(asset) => connector.download(asset)
+      case Some(asset) =>
+        connector.download(asset)
       case None =>
         logger.warn(s"Wanted to update, but didn't found proper asset in release '${release.name}'")
         failedResult(UpdateException(s"Could not found proper asset in release '${release.name}'"))
