@@ -51,6 +51,14 @@ case class BackupSetDeleteCommand(id: Long) extends BackupCommand
 
 /* -- */
 
+sealed trait FileCommand extends Command
+
+case class UploadCommand(path: String) extends FileCommand
+
+case class DownloadCommand(path: String, versionId: Long) extends FileCommand
+
+/* -- */
+
 case object PingCommand extends Command
 
 case object StatusCommand extends Command
@@ -62,10 +70,6 @@ case class RegisterCommand(host: String, username: String, password: String) ext
 case class LoginCommand(host: String, username: String, password: String) extends Command
 
 case object LogoutCommand extends Command
-
-case class UploadCommand(path: String) extends Command
-
-case class DownloadCommand(path: String, versionId: Long) extends Command
 
 case class CancelTaskCommand(id: UUID) extends Command
 
