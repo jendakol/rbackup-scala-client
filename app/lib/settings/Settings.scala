@@ -123,7 +123,7 @@ class Settings(dao: Dao) extends StrictLogging {
     def set(value: Option[A]): Result[Unit] = {
       value match {
         case Some(v) => save[A](key, cachedValue, v, converter.toString)
-        case None => delete(key)
+        case None => delete(key).map(_ => cachedValue.set(None))
       }
     }
 
