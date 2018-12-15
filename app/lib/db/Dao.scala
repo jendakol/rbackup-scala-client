@@ -61,7 +61,7 @@ class Dao(blockingScheduler: Scheduler) extends StrictLogging {
       val lastVersion = getLastVersion(remoteFile)
 
       val fileSize = lastVersion.size
-      val mtime = lastVersion.created
+      val mtime = lastVersion.mtime
       val path = remoteFile.originalName
       val remoteFileJson = remoteFile.asJson.noSpaces
 
@@ -88,7 +88,7 @@ class Dao(blockingScheduler: Scheduler) extends StrictLogging {
       val lastVersion = getLastVersion(remoteFile)
 
       val fileSize = lastVersion.size
-      val mtime = lastVersion.created
+      val mtime = lastVersion.mtime
       val path = remoteFile.originalName
       val remoteFileJson = remoteFile.asJson.noSpaces
 
@@ -115,7 +115,7 @@ class Dao(blockingScheduler: Scheduler) extends StrictLogging {
       val lastVersion = getLastVersion(remoteFile)
 
       val fileSize = lastVersion.size
-      val mtime = lastVersion.created
+      val mtime = lastVersion.mtime
       val path = remoteFile.originalName
       val remoteFileJson = remoteFile.asJson.noSpaces
 
