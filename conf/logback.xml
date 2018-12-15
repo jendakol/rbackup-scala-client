@@ -21,6 +21,7 @@
     </root>
 
     <logger name="lib.db.Dao" level="INFO"/>
+    <logger name="controllers.AjaxApiController" level="INFO"/>
 
     <logger name="akka" level="INFO"/>
     <logger name="org.http4s" level="WARN"/>

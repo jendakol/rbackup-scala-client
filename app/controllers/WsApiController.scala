@@ -66,7 +66,7 @@ class WsApiController @Inject()(
       }
 
     case rejected =>
-      logger.info(s"Request '$rejected' failed same origin check")
+      logger.info(s"Request '$rejected' - failed same origin check")
 
       Future.successful {
         Left(Forbidden("forbidden"))
@@ -104,7 +104,6 @@ class WsApiController @Inject()(
     def receive: Actor.Receive = {
       case content: String =>
         logger.debug(s"Received WS message: $content")
-        // TODO
 
         eventsCallback.foreach { callback =>
           EitherT(

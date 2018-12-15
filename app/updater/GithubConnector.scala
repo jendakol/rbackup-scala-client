@@ -31,7 +31,7 @@ class GithubConnector(httpClient: Client[Task], uri: Uri, appVersion: AppVersion
         resp.bodyAsText.compile.toList.map(_.mkString.trim).flatMap { strBody =>
           resp.status match {
             case Status.Ok =>
-              logger.debug(s"Updater check response:\n$strBody")
+              logger.trace(s"Updater check response:\n$strBody")
               Task.now(parse(strBody))
             case s => Task.now(Left(InvalidResponseException(s.code, strBody, "Could not download releases"): AppException))
           }

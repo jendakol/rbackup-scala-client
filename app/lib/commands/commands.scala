@@ -32,21 +32,25 @@ object Command {
   }
 }
 
+sealed trait BackupCommand extends Command
+
+case object BackedUpFileListCommand extends BackupCommand
+
+case class BackupSetFilesUpdateCommand(id: Long, files: Seq[BackupSetNode]) extends BackupCommand
+
+case class BackupSetDetailsCommand(id: Long) extends BackupCommand
+
+case class BackupSetExecuteCommand(id: Long) extends BackupCommand
+
+case object BackupSetsListCommand extends BackupCommand
+
+/* -- */
+
 case object PingCommand extends Command
 
 case object StatusCommand extends Command
 
 case class DirListCommand(path: String) extends Command
-
-case object BackedUpFileListCommand extends Command
-
-case class BackupSetFilesUpdateCommand(id: Long, files: Seq[BackupSetNode]) extends Command
-
-case class BackupSetDetailsCommand(id: Long) extends Command
-
-case class BackupSetExecuteCommand(id: Long) extends Command
-
-case object BackupSetsListCommand extends Command
 
 case class RegisterCommand(host: String, username: String, password: String) extends Command
 
