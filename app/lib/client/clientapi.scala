@@ -227,7 +227,7 @@ object clientapi extends StrictLogging {
   object Version {
     def apply(path: String, fileVersion: RemoteFileVersion): Version = new Version(
       value = fileVersion.version.toString,
-      text = App.DateTimeFormatter.format(fileVersion.created.withZoneSameInstant(ZoneId.systemDefault())),
+      text = App.DateTimeFormatter.format(fileVersion.mtime.withZoneSameInstant(ZoneId.systemDefault())),
       path = path,
       versionId = fileVersion.version
     )

@@ -1,10 +1,12 @@
 package lib.server
 
 import better.files.File
+import cats.syntax.all._
 import controllers.WsApiController
 import io.circe.Json
 import io.circe.generic.extras.auto._
 import javax.inject.Inject
+import lib.App
 import lib.App._
 import lib.client.clientapi.{FileTree, Version}
 import lib.db.Dao
@@ -37,6 +39,32 @@ class CloudFilesRegistry @Inject()(wsApiController: WsApiController, dao: Dao) {
 
   def get(file: File): Result[Option[RemoteFile]] = {
     dao.getFile(file).map(_.map(_.remoteFile))
+  }
+
+  def removeFile(file: RemoteFile): Result[Unit] = {
+    App.leaveBreadcrumb("Removing file", Map("path" -> file.originalName))
+
+    dao.deleteFile(file) >>
+      reportBackedUpFilesList
+  }
+
+  def removeFileVersion(file: File, fileVersion: RemoteFileVersion): Result[Unit] = {
+    App.leaveBreadcrumb("Removing file version", Map("path" -> file.pathAsString, "id" -> fileVersion.version))
+
+    get(file).flatMap {
+      case Some(f) =>
+        val restOfVersions = f.versions.filterNot(_ == fileVersion)
+
+        (if (restOfVersions.nonEmpty) {
+           updateFile(file, f.copy(versions = restOfVersions))
+         } else {
+           removeFile(f)
+         }) >> reportBackedUpFilesList
+
+      case None =>
+        App.leaveBreadcrumb("Didn't remove file version because it couldn't be found")
+        pureResult(())
+    }
   }
 }
 

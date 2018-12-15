@@ -134,12 +134,14 @@ class Dao(blockingScheduler: Scheduler) extends StrictLogging {
       }
   }
 
-  def deleteFile(fileId: Long): Result[Unit] = EitherT {
+  def deleteFile(remoteFile: RemoteFile): Result[Unit] = EitherT {
     Task {
-      logger.debug(s"Deleting file with ID $fileId")
+      val path = remoteFile.originalName
+
+      logger.debug(s"Deleting file $path")
 
       DB.autoCommit { implicit session =>
-        sql"DELETE FROM files WHERE id = ${fileId}".executeUpdate().apply()
+        sql"DELETE FROM files WHERE path = ${path}".executeUpdate().apply()
       }
 
       Right(()): Either[AppException, Unit]

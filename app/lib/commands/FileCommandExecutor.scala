@@ -8,7 +8,7 @@ import io.circe.generic.extras.auto._
 import io.circe.syntax._
 import javax.inject.Inject
 import lib.App._
-import lib.AppException.LoginRequired
+import lib.AppException.{InvalidArgument, LoginRequired}
 import lib._
 import lib.server.CloudFilesRegistry
 import lib.server.serverapi._
@@ -42,6 +42,35 @@ class FileCommandExecutor @Inject()(wsApiController: WsApiController,
         download(File(path), versionId)
       }
 
+    case RemoveRemoteFileVersion(path, versionId) =>
+      val file = File(path)
+
+      withSession { implicit session =>
+        for {
+          versions <- filesRegistry.versions(file)
+          version = versions
+            .flatMap(_.find(_.version == versionId))
+            .getOrElse(throw InvalidArgument("Could not delete non-existing file version"))
+          _ <- filesHandler.removeFileVersion(version)
+          _ <- filesRegistry.removeFileVersion(file, version)
+        } yield {
+          JsonSuccess
+        }
+      }
+
+    case RemoveRemoteFile(path) =>
+      val file = File(path)
+
+      withSession { implicit session =>
+        for {
+          fileOpt <- filesRegistry.get(file)
+          file = fileOpt.getOrElse(throw InvalidArgument("Could not delete non-existing file"))
+          _ <- filesHandler.removeFile(file)
+          _ <- filesRegistry.removeFile(file)
+        } yield {
+          JsonSuccess
+        }
+      }
   }
 
   private def uploadManually(file: File)(implicit ss: ServerSession): Result[Json] = {

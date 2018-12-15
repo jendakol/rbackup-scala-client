@@ -118,19 +118,19 @@
                         }
                     },
                     {
-                        title: 'Backup sets', icon: 'cloud_upload', action: () => {
+                        title: 'File backup sets', icon: 'cloud_upload', action: () => {
                             this.visiblePage = "backup";
                             this.sendPageInitEvent();
                         }
                     },
                     {
-                        title: 'Manual upload', icon: 'cloud_upload', action: () => {
+                        title: 'Manual file upload', icon: 'cloud_upload', action: () => {
                             this.visiblePage = "backup-manual";
                             this.sendPageInitEvent();
                         }
                     },
                     {
-                        title: 'Restore', icon: 'cloud_download', action: () => {
+                        title: 'Restore file', icon: 'cloud_download', action: () => {
                             this.visiblePage = "restore";
                             this.sendPageInitEvent();
                         }

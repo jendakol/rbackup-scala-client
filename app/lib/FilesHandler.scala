@@ -12,8 +12,9 @@ import io.circe.generic.extras.auto._
 import io.circe.syntax._
 import javax.inject.{Inject, Named}
 import lib.App._
+import lib.AppException.InvalidArgument
 import lib.db.{Dao, DbFile}
-import lib.server.serverapi.{DownloadResponse, RemoteFile, RemoteFileVersion, UploadResponse}
+import lib.server.serverapi._
 import lib.server.{CloudConnector, CloudFilesRegistry}
 import lib.settings.Settings
 import monix.eval.Task
@@ -176,6 +177,26 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
               }
           }
       }
+    }
+  }
+
+  def removeFile(file: RemoteFile)(implicit session: ServerSession): Result[Unit] = {
+    cloudConnector.removeFile(file.id).subflatMap {
+      case RemoveFileResponse.Success => Right(())
+
+      case RemoveFileResponse.PartialFailure(failures) =>
+        Left(InvalidArgument(s"Could not delete remote file ${file.originalName} because: ${failures.toList.mkString(", ")}"))
+
+      case RemoveFileResponse.FileNotFound =>
+        Left(InvalidArgument(s"Could not delete remote file ${file.originalName} because it doesn't exist"))
+    }
+  }
+
+  def removeFileVersion(version: RemoteFileVersion)(implicit session: ServerSession): Result[Unit] = {
+    cloudConnector.removeFileVersion(version.version).subflatMap {
+      case RemoveFileVersionResponse.Success => Right(())
+      case RemoveFileVersionResponse.FileNotFound =>
+        Left(InvalidArgument(s"Could not delete remote file version ${version.version} because it doesn't exist"))
     }
   }
 

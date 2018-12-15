@@ -16,7 +16,13 @@ object Command {
     case "backupSetExecute" => data.flatMap(_.as[BackupSetExecuteCommand].toOption)
     case "backupSetsList" => Some(BackupSetsListCommand)
     case "backupSetNew" => data.flatMap(_.as[BackupSetNewCommand].toOption)
+
     case "backupSetDelete" => data.flatMap(_.as[BackupSetDeleteCommand].toOption)
+    case "upload" => data.flatMap(_.as[UploadCommand].toOption)
+    case "removeRemoteFile" => data.flatMap(_.as[RemoveRemoteFile].toOption)
+    case "removeRemoteFileVersion" => data.flatMap(_.as[RemoveRemoteFileVersion].toOption)
+
+    case "download" => data.flatMap(_.as[DownloadCommand].toOption)
     case "ping" => Some(PingCommand)
     case "status" => Some(StatusCommand)
     case "backedUpFileList" => Some(BackedUpFileListCommand)
@@ -24,8 +30,6 @@ object Command {
     case "register" => data.flatMap(_.as[RegisterCommand].toOption)
     case "login" => data.flatMap(_.as[LoginCommand].toOption)
     case "logout" => Some(LogoutCommand)
-    case "upload" => data.flatMap(_.as[UploadCommand].toOption)
-    case "download" => data.flatMap(_.as[DownloadCommand].toOption)
     case "cancelTask" => data.flatMap(_.as[CancelTaskCommand].toOption)
     case "settingsLoad" => Some(LoadSettingsCommand)
     case "settingsSave" => data.flatMap(_.as[SaveSettingsCommand].toOption)
@@ -56,6 +60,10 @@ sealed trait FileCommand extends Command
 case class UploadCommand(path: String) extends FileCommand
 
 case class DownloadCommand(path: String, versionId: Long) extends FileCommand
+
+case class RemoveRemoteFile(path: String) extends FileCommand
+
+case class RemoveRemoteFileVersion(path: String, versionId: Long) extends FileCommand
 
 /* -- */
 
