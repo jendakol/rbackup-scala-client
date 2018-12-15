@@ -12,14 +12,16 @@ sealed trait Command
 
 object Command {
   def apply(name: String, data: Option[Json]): Option[Command] = name match {
-    case "ping" => Some(PingCommand)
-    case "status" => Some(StatusCommand)
-    case "backedUpFileList" => Some(BackedUpFileListCommand)
-    case "dirList" => data.flatMap(_.as[DirListCommand].toOption)
     case "backupSetFiles" => data.flatMap(_.as[BackupSetFilesUpdateCommand].toOption)
     case "backupSetDetails" => data.flatMap(_.as[BackupSetDetailsCommand].toOption)
     case "backupSetExecute" => data.flatMap(_.as[BackupSetExecuteCommand].toOption)
     case "backupSetsList" => Some(BackupSetsListCommand)
+    case "backupSetNew" => data.flatMap(_.as[BackupSetNewCommand].toOption)
+    case "backupSetDelete" => data.flatMap(_.as[BackupSetDeleteCommand].toOption)
+    case "ping" => Some(PingCommand)
+    case "status" => Some(StatusCommand)
+    case "backedUpFileList" => Some(BackedUpFileListCommand)
+    case "dirList" => data.flatMap(_.as[DirListCommand].toOption)
     case "register" => data.flatMap(_.as[RegisterCommand].toOption)
     case "login" => data.flatMap(_.as[LoginCommand].toOption)
     case "logout" => Some(LogoutCommand)
@@ -43,6 +45,10 @@ case class BackupSetDetailsCommand(id: Long) extends BackupCommand
 case class BackupSetExecuteCommand(id: Long) extends BackupCommand
 
 case object BackupSetsListCommand extends BackupCommand
+
+case class BackupSetNewCommand(name: String) extends BackupCommand
+
+case class BackupSetDeleteCommand(id: Long) extends BackupCommand
 
 /* -- */
 

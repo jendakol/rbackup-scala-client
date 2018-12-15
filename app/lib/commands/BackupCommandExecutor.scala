@@ -8,7 +8,7 @@ import io.circe.Json
 import io.circe.generic.extras.auto._
 import io.circe.syntax._
 import javax.inject.{Inject, Singleton}
-import lib.App.{failedResult, parseUnsafe, DateTimeFormatter, JsonSuccess, Result}
+import lib.App._
 import lib.AppException.LoginRequired
 import lib.client.clientapi.{BackupSetNode, FileTree}
 import lib.db.Dao
@@ -75,6 +75,14 @@ class BackupCommandExecutor @Inject()(dao: Dao,
           ignoreFailure = true
         )
       } yield JsonSuccess
+
+    case BackupSetNewCommand(name) =>
+      App.leaveBreadcrumb("Creating backup set", Map("name" -> name))
+      dao.createBackupSet(name).mapToJsonSuccess
+
+    case BackupSetDeleteCommand(id) =>
+      App.leaveBreadcrumb("Deleting backup set", Map("id" -> id))
+      dao.deleteBackupSet(id).mapToJsonSuccess
   }
 
   private def backedUpList: EitherT[Task, AppException, Json] = {

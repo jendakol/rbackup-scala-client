@@ -4,6 +4,8 @@ import Vuetify from 'vuetify'
 import '../sass/style.scss';
 import Snotify, { SnotifyPosition } from 'vue-snotify/vue-snotify.min.js'
 import Datetime from 'vue-datetime'
+import VuetifyConfirm from 'vuetify-confirm'
+Vue.use(VuetifyConfirm);
 
 const options = {
     toast: {

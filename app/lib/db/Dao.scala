@@ -212,7 +212,6 @@ class Dao(blockingScheduler: Scheduler) extends StrictLogging {
 
   def createBackupSet(name: String): Result[BackupSet] = EitherT {
     Task {
-
       logger.debug(s"Saving new backup set '$name' to DB")
 
       val id = DB.autoCommit { implicit session =>
@@ -224,6 +223,23 @@ class Dao(blockingScheduler: Scheduler) extends StrictLogging {
       logger.debug(s"$bs saved")
 
       Right(bs): Either[AppException, BackupSet]
+    }.executeOnScheduler(blockingScheduler)
+      .onErrorRecover {
+        case NonFatal(e) => Left(DbException("Creating backup set", e))
+      }
+  }
+
+  def deleteBackupSet(id: Long): Result[Unit] = EitherT {
+    Task {
+      logger.debug(s"Deleting backup set ID '$id' from DB")
+
+      DB.autoCommit { implicit session =>
+        sql"""delete from backup_sets where id = ${id}""".update().apply()
+      }
+
+      logger.debug(s"Backup set ID $id deleted")
+
+      Right(()): Either[AppException, Unit]
     }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
         case NonFatal(e) => Left(DbException("Creating backup set", e))
