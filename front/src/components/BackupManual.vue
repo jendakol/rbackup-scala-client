@@ -1,7 +1,6 @@
 <template>
     <div>
-        <v-jstree :data="fileTreeData" :item-events="itemEvents" :async="loadData" show-checkbox multiple allow-batch
-                  whole-row></v-jstree>
+        <v-jstree :data="fileTreeData" :item-events="itemEvents" :async="loadData"></v-jstree>
 
         <vue-context ref="fileMenu">
             <ul>

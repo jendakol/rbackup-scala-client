@@ -1,7 +1,7 @@
 <template>
     <div>
 
-        <div v-if="fileTreeData.length === 0">
+        <div v-if="loaded === true && fileTreeData.length === 0">
             <v-container text-xs-center>
                 <v-layout row wrap>
                     <v-flex>
@@ -9,8 +9,6 @@
                             <v-card-text class="px-0">
                                 <v-icon>info</v-icon>
                                 No items yet, backup something first ;-)
-
-                                {{ fileTreeData }}
                             </v-card-text>
                         </v-card>
                     </v-flex>
@@ -64,6 +62,7 @@
         data() {
             return {
                 fileTreeData: [],
+                loaded: false,
                 loadData: (oriNode, resolve) => {
                     this.ajax("backedUpFileList", {})
                         .then(response => {
