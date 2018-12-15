@@ -14,7 +14,7 @@
 
         <v-container fluid fill-height>
 
-            <v-jstree :data="fileTreeData" :async="loadData" show-checkbox multiple allow-batch
+            <v-jstree :data="fileTreeData" :async="loadData" @item-click="this.updateSelectedFiles" show-checkbox multiple allow-batch
                       whole-row></v-jstree>
 
         </v-container>
@@ -48,12 +48,16 @@
             return {
                 fileTreeData: [],
                 backupSetFiles: [],
+                treeLoaded: false,
+                filesLoaded: false,
                 loadData: (oriNode, resolve) => {
                     let path = oriNode.data.value;
 
                     this.ajax("dirList", {path: path != undefined ? path + "" : ""})
                         .then(response => {
-                            resolve(response)
+                            resolve(response);
+                            this.treeLoaded = true;
+                            this.selectFilesInTree();
                         })
 
                 },
@@ -66,10 +70,11 @@
                 .then(response => {
                     if (response.success) {
                         this.backupSetFiles = response.data.files;
+                        this.filesLoaded = true;
                     } else {
                         this.$snotify.error("Could not load backup sets :-(")
                     }
-                })
+                });
         },
         methods: {
             runBackup() {
@@ -83,7 +88,7 @@
                 );
             },
             saveBackupSelection() {
-                this.ajax("backupSetFiles", {id: this.backupSet.id, files: this.fileTreeData})
+                this.ajax("backupSetFiles", {id: this.backupSet.id, paths: this.backupSetFiles})
             },
             receiveWs(message) {
                 switch (message.type) {
@@ -112,8 +117,76 @@
                         break;
                 }
             },
-            selectTreeNode(path) {
-                return JSPath.apply("..{.value === '" + path + "'}", this.fileTreeData)[0]
+            findTreeNode(path) {
+                return JSPath.apply('..{.value === "' + path + '"}', this.fileTreeData)[0]
+            },
+            selectFilesInTree() {
+                if (!this.filesLoaded || !this.treeLoaded) {
+                    setTimeout(this.selectFilesInTree, 200);
+                    return;
+                }
+
+                this.backupSetFiles.forEach((filePath) => {
+                    let node = this.findTreeNode(filePath);
+                    if (node !== undefined && node.loading === false) {
+                        node.selected = true;
+                        this.selectChildren(node, true)
+                    }
+                })
+            },
+            selectChildren(node, select) {
+                if (node.children !== undefined) {
+                    node.children.forEach(children => {
+                        if (children.loading === false) this.selectNode(children, select);
+                    })
+                }
+            },
+            updateSelectedFiles(n, fileNode, e) {
+                if (fileNode.selected) {
+                    this.addFileToSelected(fileNode.value);
+                } else {
+                    let parent = this.getParentNode(fileNode);
+
+                    if (parent !== undefined && parent.selected) {
+                        this.selectChildren(parent, true);
+                        this.selectNode(parent, false);
+
+                        fileNode.selected = false;
+                    }
+
+                    this.selectChildren(fileNode, false);
+                    this.selectNode(fileNode, false)
+                }
+            },
+            selectNode(node, select) {
+                node.selected = select;
+                let filePath = node.value;
+
+                if (select) {
+                    this.addFileToSelected(filePath);
+                    this.selectChildren(node, true);
+                } else {
+                    this.removeFileFromSelected(filePath);
+                }
+            },
+            addFileToSelected(filePath) {
+                if (this.backupSetFiles.indexOf(filePath) < 0) {
+                    this.backupSetFiles.push(filePath);
+                }
+            },
+            removeFileFromSelected: function (filePath) {
+                let pos;
+                while ((pos = this.backupSetFiles.indexOf(filePath)) >= 0) {
+                    this.backupSetFiles.splice(pos, 1);
+                }
+            },
+            getParentNode(node) {
+                let filePathParts = node.value.split("/");
+                filePathParts.pop();
+
+                if (filePathParts.length === 1 && filePathParts[0] === "") return this.findTreeNode("/");
+
+                return this.findTreeNode(filePathParts.join("/"))
             },
         }
     }

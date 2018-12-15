@@ -5,7 +5,6 @@ import java.util.UUID
 import io.circe.Json
 import io.circe.generic.auto._
 import lib.App._
-import lib.client.clientapi.BackupSetNode
 import lib.server.serverapi.{LoginResponse, RegistrationResponse}
 
 sealed trait Command
@@ -38,7 +37,7 @@ sealed trait BackupCommand extends Command
 
 case object BackedUpFileListCommand extends BackupCommand
 
-case class BackupSetFilesUpdateCommand(id: Long, files: Seq[BackupSetNode]) extends BackupCommand
+case class BackupSetFilesUpdateCommand(id: Long, paths: Seq[String]) extends BackupCommand
 
 case class BackupSetDetailsCommand(id: Long) extends BackupCommand
 

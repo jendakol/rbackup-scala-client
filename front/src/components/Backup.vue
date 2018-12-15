@@ -62,7 +62,8 @@
             BackupSet
         },
         created() {
-            this.refreshBackupSets()
+            if (!this.initialized)
+                this.refreshBackupSets()
         },
         data() {
             return {
@@ -70,7 +71,8 @@
                 addDialog: 0,
                 deleteDialog: 0,
                 backupSets: [],
-                newName: ""
+                newName: "",
+                initialized: false
             }
         }, methods: {
             refreshBackupSets() {
@@ -78,6 +80,7 @@
                     .then(response => {
                         if (response.success) {
                             this.backupSets = response.data;
+                            this.initialized = true;
                         } else {
                             this.$snotify.error("Could not load backup sets :-(")
                         }

@@ -10,7 +10,7 @@ import io.circe.syntax._
 import javax.inject.{Inject, Singleton}
 import lib.App._
 import lib.AppException.LoginRequired
-import lib.client.clientapi.{BackupSetNode, FileTree}
+import lib.client.clientapi.FileTree
 import lib.db.Dao
 import lib.settings.Settings
 import lib.{App, AppException, ServerSession, _}
@@ -116,10 +116,18 @@ class BackupCommandExecutor @Inject()(dao: Dao,
     }
   }
 
-  private def updateBackupSetFilesList(bsId: Long, files: Seq[BackupSetNode]): Result[Unit] = {
-    val normalized = files.flatMap(_.flattenNormalize)
+  private def updateBackupSetFilesList(bsId: Long, paths: Seq[String]): Result[Unit] = {
+    val normalized = normalizePaths(paths)
 
-    dao.updateFilesInBackupSet(bsId, normalized.map(n => File(n.value)))
+    logger.debug(s"Updating files in backup set $bsId: ${normalized.mkString("[", ", ", "]")}")
+    dao.updateFilesInBackupSet(bsId, normalized.map(File(_)))
+  }
+
+  private def normalizePaths(paths: Seq[String]): Seq[String] = {
+    paths
+      .filter { path => // filter out files which are already present vie their parents
+        !paths.exists(p => p != path && path.startsWith(p))
+      }
   }
 
   private def withSession[A](f: ServerSession => Result[A]): Result[A] = {

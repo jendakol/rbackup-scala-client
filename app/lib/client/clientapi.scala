@@ -313,7 +313,7 @@ object clientapi extends StrictLogging {
       val keys = map.keySet
 
       map
-        .filterKeys { path =>
+        .filterKeys { path => // filter out files which are already present vie their parents
           !keys.exists(p => p != path && path.startsWith(p))
         }
         .values

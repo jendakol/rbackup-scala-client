@@ -112,7 +112,7 @@
                         break;
                 }
             },
-            selectTreeNode(path) {
+            findTreeNode(path) {
                 return JSPath.apply("..{.value === '" + path + "'}", this.fileTreeData)[0]
             },
         }
