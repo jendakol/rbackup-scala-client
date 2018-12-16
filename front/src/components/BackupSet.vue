@@ -1,16 +1,22 @@
 <template>
     <div>
-        <div>{{this.backupSet.name}}</div>
-        <div>{{ this.backupSetFiles }}</div>
+        <v-btn v-if="this.backupSet.processing === false" @click="runBackup"
+               absolute
+               dark
+               fab
+               top
+               right
+               color="success">
+            <v-icon>backup</v-icon>
+        </v-btn>
+        <div v-else>
+            <loading :active="true"
+                     :can-cancel="false"
+                     :is-full-page="false"></loading>
+        </div>
 
         <div>Last executed: {{this.backupSet.last_execution}}</div>
         <div>Next execution: {{this.backupSet.next_execution}}</div>
-
-
-        <v-btn v-if="this.backupSet.processing === false" color="success" @click="runBackup">Run now</v-btn>
-        <div v-else>
-            Backup running
-        </div>
 
         <v-container fluid fill-height>
 
@@ -18,19 +24,14 @@
                       whole-row></v-jstree>
 
         </v-container>
-
-        <BottomBar>
-            <v-btn v-if="this.backupSet.processing === false" @click="saveBackupSelection" color="success">Save</v-btn>
-            <v-btn v-else @click="saveBackupSelection" color="success" disabled>Save</v-btn>
-        </BottomBar>
     </div>
 </template>
 
 <script>
     import VJstree from 'vue-jstree';
     import JSPath from 'jspath';
-
-    import BottomBar from '../components/BottomBar.vue';
+    import Loading from 'vue-loading-overlay';
+    import 'vue-loading-overlay/dist/vue-loading.css';
 
     export default {
         name: "BackupSet",
@@ -42,7 +43,7 @@
         },
         components: {
             VJstree,
-            BottomBar
+            Loading
         },
         data() {
             return {
@@ -50,6 +51,7 @@
                 backupSetFiles: [],
                 treeLoaded: false,
                 filesLoaded: false,
+                loadingShow: true,
                 loadData: (oriNode, resolve) => {
                     let path = oriNode.data.value;
 
@@ -157,6 +159,8 @@
                     this.selectChildren(fileNode, false);
                     this.selectNode(fileNode, false)
                 }
+
+                this.saveBackupSelection();
             },
             selectNode(node, select) {
                 node.selected = select;
