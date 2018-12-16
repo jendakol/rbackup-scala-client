@@ -4,6 +4,7 @@
 
 # Home page
 GET     /                           controllers.FrontController.index()
+GET     /status                     controllers.StatusController.status
 GET     /ws-api                     controllers.WsApiController.socket
 POST    /ajax-api                   controllers.AjaxApiController.exec
 
