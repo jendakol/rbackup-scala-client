@@ -10,14 +10,14 @@ import cats.syntax.all._
 import com.typesafe.scalalogging.StrictLogging
 import io.circe.Decoder
 import lib.App._
-import lib.AppException
 import lib.AppException._
+import lib.{AppException, AppVersion}
 import monix.eval.Task
 import monix.execution.Scheduler
 import org.http4s.client.Client
 import org.http4s.headers.`Content-Length`
 import org.http4s.{Response, Status, Uri}
-import updater.GithubConnector._
+import GithubConnector._
 
 import scala.concurrent.ExecutionContext
 

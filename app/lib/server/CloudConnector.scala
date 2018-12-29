@@ -15,7 +15,7 @@ import io.circe.Json
 import io.circe.generic.extras.auto._
 import lib.App._
 import lib.AppException.ServerNotResponding
-import lib._
+import lib.{AppVersion, _}
 import lib.server.serverapi.ListFilesResponse.FilesList
 import lib.server.serverapi._
 import monix.eval.Task
@@ -28,7 +28,6 @@ import org.http4s.multipart._
 import org.http4s.{Headers, Method, Request, Response, Status, Uri}
 import pureconfig.modules.http4s.uriReader
 import pureconfig.{CamelCase, ConfigFieldMapping, ProductHint}
-import updater.AppVersion
 import utils.CirceImplicits._
 import utils.{FileCopier, InputStreamWithSha256, StatsInputStream, StatsOutputStream}
 
@@ -50,12 +49,15 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
     }
   }
 
-  def login(rootUri: Uri, deviceId: String, username: String, password: String): Result[LoginResponse] = {
+  def login(rootUri: Uri, deviceId: DeviceId, username: String, password: String): Result[LoginResponse] = {
     logger.debug(s"Logging device $deviceId with username $username")
     App.leaveBreadcrumb("Logging in", Map("uri" -> rootUri, "username" -> username))
 
     val request =
-      plainRequestToHost(Method.GET, rootUri, "account/login", Map("device_id" -> deviceId, "username" -> username, "password" -> password))
+      plainRequestToHost(Method.GET,
+                         rootUri,
+                         "account/login",
+                         Map("device_id" -> deviceId.value, "username" -> username, "password" -> password))
 
     status(rootUri).flatMap { status =>
       exec(request) {

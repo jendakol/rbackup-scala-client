@@ -13,7 +13,7 @@ import monix.eval.Task
 import monix.execution.{Cancelable, Scheduler}
 import org.http4s.Uri
 import play.api.inject.ApplicationLifecycle
-import updater.{AppVersion, Updater}
+import updater.Updater
 
 import scala.collection.generic.CanBuildFrom
 import scala.concurrent.Future
@@ -38,8 +38,10 @@ class App @Inject()(backupSetsExecutor: BackupSetsExecutor, updater: Updater)(li
 }
 
 object App {
-  final val versionStr: String = "0.1.2"
+  final val versionStr: String = "0.1.3"
   final val version: AppVersion = AppVersion(versionStr).getOrElse(throw new IllegalArgumentException("Could not parse versionStr"))
+
+  final val SentryDsn: Option[String] = Some("https://74fe77b3e5024c18bd850d09c4c775c4@sentry.io/1340234")
 
   type Result[A] = EitherT[Task, AppException, A]
 
@@ -205,4 +207,6 @@ object App {
 
 case class ServerSession(rootUri: Uri, sessionId: String, serverVersion: AppVersion)
 
-case class DeviceId(value: String) extends AnyVal
+case class DeviceId(value: String) {
+  override def toString: String = value
+}

@@ -1,5 +1,6 @@
 package updater
 
+import java.net.ConnectException
 import java.util.concurrent.atomic.AtomicBoolean
 
 import better.files.File
@@ -8,16 +9,20 @@ import com.typesafe.scalalogging.StrictLogging
 import javax.inject.{Inject, Named, Singleton}
 import lib.App._
 import lib.AppException.UpdateException
+import lib.{App, AppVersion, DeviceId}
 import monix.eval.Task
 import monix.execution.{Cancelable, Scheduler}
 import updater.GithubConnector.Release
+import utils.ConfigProperty
 
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
 
 @Singleton
 class Updater @Inject()(connector: GithubConnector,
-                        serviceUpdater: ServiceUpdater,
+                        serviceUpdater: ServiceUpdaterExecutor,
+                        @ConfigProperty("environment") env: String,
+                        deviceId: DeviceId,
                         @Named("updaterCheckPeriod") checkPeriod: FiniteDuration)(implicit scheduler: Scheduler)
     extends StrictLogging {
   private val updateRunning = new AtomicBoolean(false)
@@ -26,43 +31,47 @@ class Updater @Inject()(connector: GithubConnector,
     logger.info(s"Started updates checker, will check every $checkPeriod")
 
     scheduler.scheduleAtFixedRate(1.seconds, checkPeriod) {
-      connector.checkUpdate
-        .flatMap {
-          case Some(rel) =>
-            if (updateRunning.compareAndSet(false, true)) {
-              logger.debug(s"Found update: $rel")
-              updateApp(rel)
-            } else pureResult(())
-
-          case None =>
-            logger.debug("Didn't find update for current version")
-            pureResult(())
-        }
-        .recoverWith {
-          case ae =>
-            updateRunning.set(false)
-            logger.warn("Could not download update", ae)
-            EitherT.leftT[Task, Unit](ae)
-        }
-        .value
-        .onErrorRecover {
-          case e: java.net.ConnectException =>
-            updateRunning.set(false)
-            logger.warn("Could not download update", e)
-            Left(UpdateException("Could not update the app", e))
-
-          case e: UpdateException =>
-            updateRunning.set(false)
-            logger.warn("Could not download update", e)
-            Left(e)
-
-          case NonFatal(e) =>
-            updateRunning.set(false)
-            logger.warn("Unknown error while updating the app", e)
-            Left(UpdateException("Could not update the app", e))
-        }
+      tryUpdate.value
         .runSyncUnsafe(Duration.Inf)
     }
+  }
+
+  def tryUpdate: Result[Unit] = EitherT {
+    connector.checkUpdate
+      .flatMap {
+        case Some(rel) =>
+          if (updateRunning.compareAndSet(false, true)) {
+            logger.debug(s"Found update: $rel")
+            updateApp(rel)
+          } else pureResult(())
+
+        case None =>
+          logger.debug("Didn't find update for current version")
+          pureResult(())
+      }
+      .recoverWith {
+        case ae =>
+          updateRunning.set(false)
+          logger.warn("Could not download update", ae)
+          EitherT.leftT[Task, Unit](ae)
+      }
+      .value
+      .onErrorRecover {
+        case e: ConnectException =>
+          updateRunning.set(false)
+          logger.warn("Could not download update", e)
+          Left(UpdateException("Could not update the app", e))
+
+        case e: UpdateException =>
+          updateRunning.set(false)
+          logger.warn("Could not download update", e)
+          Left(e)
+
+        case NonFatal(e) =>
+          updateRunning.set(false)
+          logger.warn("Unknown error while updating the app", e)
+          Left(UpdateException("Could not update the app", e))
+      }
   }
 
   private def updateApp(release: Release): Result[Unit] = {
@@ -83,8 +92,13 @@ class Updater @Inject()(connector: GithubConnector,
 
       // TODO don't do it if task is running
 
-      logger.info("Starting the update")
-      serviceUpdater.restartAndReplace(dirWithUpdate)
+      val newVersion = release.appVersion.getOrElse {
+        AppVersion(0, 0, 0)
+      }
+
+      logger.info(s"Starting the update from ${App.version} to $newVersion")
+
+      serviceUpdater.executeUpdate(App.version, newVersion, env, deviceId, dirWithUpdate)
     }
   }
 

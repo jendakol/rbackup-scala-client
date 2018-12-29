@@ -10,14 +10,13 @@ import com.typesafe.scalalogging.StrictLogging
 import io.circe.generic.extras.Configuration
 import io.circe.syntax._
 import io.circe.{Decoder, Json}
-import lib.App
+import lib.{App, AppVersion}
 import lib.App._
 import lib.App.StringOps
 import lib.client.clientapi.FileTreeNode.{Directory, RegularFile}
 import lib.server.serverapi
 import lib.server.serverapi.{RemoteFile, RemoteFileVersion}
 import org.http4s.Uri
-import updater.AppVersion
 
 object clientapi extends StrictLogging {
 

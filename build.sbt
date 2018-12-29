@@ -13,7 +13,7 @@ mappings in Universal ++= directory(baseDirectory.value / "public")
 
 name := "rbackup-client"
 
-version := sys.env.getOrElse("TRAVIS_TAG", "0.1.0")
+version := sys.env.getOrElse("VERSION", "0.1.0")
 
 scalaVersion := "2.12.7"
 
@@ -37,9 +37,13 @@ libraryDependencies ++= Seq(
   "io.circe" %% "circe-generic-extras" % "0.10.1",
   "com.avast.metrics" %% "metrics-scala" % Versions.metricsVersion,
   "com.avast.metrics" % "metrics-statsd" % Versions.metricsVersion,
+  "com.softwaremill.sttp" %% "core" % "1.5.1",
+  "org.apache.commons" % "commons-lang3" % "3.8.1",
+  "com.github.pathikrit" %% "better-files" % "3.6.0",
+  "org.typelevel" %% "cats-core" % "1.5.0",
   "io.sentry" % "sentry-logback" % "1.7.14",
   "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
-  "org.scalatest" %% "scalatest" % "3.0.5" % "test",
+  "org.scalatest" %% "scalatest" % "3.0.5",
   "org.mockito" % "mockito-core" % "2.23.0" % "test"
 )
 
@@ -83,24 +87,49 @@ frontEndBuild := (frontEndBuild dependsOn cleanFrontEndBuild).value
 
 dist := (dist dependsOn frontEndBuild).value
 
-lazy val setVersionInSources = taskKey[Unit]("Sets build version into")
+lazy val AppModulePath = "app/lib/App.scala"
+
+
+lazy val setVersionInSources = taskKey[Unit]("Sets build version into sources")
 
 setVersionInSources := {
   import java.io.PrintWriter
   import scala.io.Source
   
-  val version = sys.env.getOrElse("TRAVIS_TAG", "0.1.0")
+  val version = sys.env.getOrElse("VERSION", throw new IllegalArgumentException("Missing VERSION env property"))
   println(s"Setting app version to $version")
   
-  val src = Source.fromFile("app/lib/App.scala").mkString
+  val src = Source.fromFile(AppModulePath).mkString
   val updated = src.replaceAll(
     """final val versionStr: String = "\d+.\d+.\d+"""",
     s"""final val versionStr: String = "$version""""
   )
-  
-  val writer = new PrintWriter(new File("app/lib/App.scala"))
+
+  val writer = new PrintWriter(new File(AppModulePath))
   writer.write(updated)
   writer.close()
+}
+
+lazy val setSentryDsnInSources = taskKey[Unit]("Sets Sentry DSN into sources")
+
+setSentryDsnInSources := {
+  import java.io.PrintWriter
+
+  import scala.io.Source
+
+  sys.env.get("SENTRY_DSN").foreach { dsn =>
+    println(s"Setting Sentry DSN")
+
+    val src = Source.fromFile(AppModulePath).mkString
+    val updated = src.replace(
+      """SentryDsn: Option[String] = None""",
+      s"""SentryDsn: Option[String] = Some("$dsn")"""
+    )
+
+    val writer = new PrintWriter(new File(AppModulePath))
+    writer.write(updated)
+    writer.close()
+  }
 }
 
 sources in (Compile, doc) := Seq.empty

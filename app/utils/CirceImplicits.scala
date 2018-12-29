@@ -6,9 +6,8 @@ import java.util.UUID
 import cats.syntax.either._
 import io.circe.generic.extras.Configuration
 import io.circe.{Decoder, Encoder}
-import lib.DeviceId
+import lib.{AppVersion, DeviceId}
 import org.http4s.Uri
-import updater.AppVersion
 
 object CirceImplicits {
   implicit val configuration: Configuration = Configuration.default.withSnakeCaseConstructorNames.withSnakeCaseMemberNames

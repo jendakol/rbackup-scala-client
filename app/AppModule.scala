@@ -20,7 +20,7 @@ import org.http4s.client.middleware.FollowRedirect
 import play.api.{Configuration, Environment}
 import scalikejdbc._
 import scalikejdbc.config.DBs
-import updater._
+import updater.{GithubConnector, LinuxServiceUpdaterExecutor, ServiceUpdaterExecutor, WindowsServiceUpdaterExecutor}
 import utils.AllowedWsApiOrigins
 
 import scala.collection.JavaConverters._
@@ -33,15 +33,21 @@ class AppModule(environment: Environment, configuration: Configuration)
     with StrictLogging {
   private val config = configuration.underlying
 
-  if (config.getBoolean("sentry.enabled") && config.getString("sentry.environment") != "dev") {
-    logger.info("Sentry configured")
-    val sentry = Sentry.init(config.getString("sentry.dsn"))
-    sentry.setRelease(App.versionStr)
-    sentry.setEnvironment(config.getString("sentry.environment"))
-    sentry.setServerName(config.getString("deviceId"))
-    sentry.setDist(config.getString("sentry.dist"))
-  } else {
-    logger.info("Sentry NOT configured")
+  App.SentryDsn match {
+    case Some(dsn) =>
+      if (config.getBoolean("sentry.enabled") && config.getString("environment") != "dev") {
+        logger.info("Sentry configured")
+        val sentry = Sentry.init(dsn)
+        sentry.setRelease(App.versionStr)
+        sentry.addTag("app", "client")
+        sentry.setEnvironment(config.getString("environment"))
+        sentry.setServerName(config.getString("deviceId"))
+        sentry.setDist(if (SystemUtils.IS_OS_WINDOWS) "win" else "linux")
+      } else {
+        logger.info("Sentry NOT enabled")
+      }
+
+    case None => logger.info("Sentry NOT configured")
   }
 
   DBs.setupAll()
@@ -67,10 +73,13 @@ class AppModule(environment: Environment, configuration: Configuration)
 
     bind[AllowedWsApiOrigins].toInstance(AllowedWsApiOrigins(config.getStringList("allowedWsApiOrigins").asScala))
 
+    val deviceId = DeviceId(config.getString("deviceId"))
+    bind[DeviceId].toInstance(deviceId)
+
     val cloudConnector = CloudConnector.fromConfig(config.getConfig("cloudConnector"), blockingScheduler)
     val dao = new Dao(blockingScheduler)
     val settings = new Settings(dao)
-    val stateManager = new StateManager(DeviceId(config.getString("deviceId")), cloudConnector, dao, settings)
+    val stateManager = new StateManager(deviceId, cloudConnector, dao, settings)
 
     bind[CloudConnector].toInstance(cloudConnector)
     bind[Dao].toInstance(dao)
@@ -116,9 +125,9 @@ class AppModule(environment: Environment, configuration: Configuration)
 
   private def bindServiceUpdater(): Unit = {
     val updater = if (SystemUtils.IS_OS_WINDOWS) {
-      new WindowsServiceUpdater
-    } else new LinuxServiceUpdater
+      new WindowsServiceUpdaterExecutor
+    } else new LinuxServiceUpdaterExecutor
 
-    bind[ServiceUpdater].toInstance(updater)
+    bind[ServiceUpdaterExecutor].toInstance(updater)
   }
 }

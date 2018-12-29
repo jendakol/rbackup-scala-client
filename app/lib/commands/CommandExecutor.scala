@@ -24,7 +24,6 @@ import monix.eval.Task
 import monix.execution.Scheduler
 import org.http4s.Uri
 import utils.CirceImplicits._
-import utils.ConfigProperty
 
 @Singleton
 class CommandExecutor @Inject()(cloudConnector: CloudConnector,
@@ -35,7 +34,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
                                 fileCommandExecutor: FileCommandExecutor,
                                 settings: Settings,
                                 stateManager: StateManager,
-                                @ConfigProperty("deviceId") deviceId: String)(implicit scheduler: Scheduler)
+                                deviceId: DeviceId)(implicit scheduler: Scheduler)
     extends StrictLogging {
 
   wsApiController.setEventCallback(processEvent)
@@ -51,7 +50,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
 
         import scala.concurrent.duration._
 
-        tasksManager.start(RunningTask.FileUpload("theName"))(EitherT.right(Task.unit.delayResult(10.seconds))) >>
+        tasksManager.start(RunningTask.FileUpload(deviceId.value))(EitherT.right(Task.unit.delayResult(10.seconds))) >>
           cloudConnector.status
             .flatMap { str =>
               parse(s"""{"serverResponse": "$str"}""").toResult

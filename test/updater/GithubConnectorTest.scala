@@ -2,7 +2,7 @@ package updater
 
 import java.time.Instant
 
-import lib.AppException
+import lib.{AppException, AppVersion}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.http4s.client.Client
