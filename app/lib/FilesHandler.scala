@@ -277,27 +277,28 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
 
   private def withSemaphore[A](a: => Result[A]): Result[A] = EitherT {
     semaphore.decrement.bracketE { _ =>
+      logger.debug(s"Semaphore acquired, currently transferring ${transferringCnt.get()}/$maxParallelism files")
       a.value
     } {
       case (_, Right(Right(res))) =>
         logger.trace(s"File transfer result $res, unlocking")
         semaphore.increment
-          .map(_ => logger.debug(s"Released, currently transferring ${transferringCnt.get()} files"))
+          .map(_ => logger.debug(s"Semaphore released, currently transferring ${transferringCnt.get()}/$maxParallelism files"))
 
       case (_, Right(Left(ae))) =>
         logger.trace(s"File transfer failed, unlocking", ae)
         semaphore.increment
-          .map(_ => logger.debug(s"Released, currently transferring ${transferringCnt.get()} files"))
+          .map(_ => logger.debug(s"Semaphore released, currently transferring ${transferringCnt.get()}/$maxParallelism files"))
 
       case (_, Left(Some(th))) =>
         logger.trace(s"File transfer failed, unlocking", th)
         semaphore.increment
-          .map(_ => logger.debug(s"Released, currently transferring ${transferringCnt.get()} files"))
+          .map(_ => logger.debug(s"Semaphore released, currently transferring ${transferringCnt.get()}/$maxParallelism files"))
 
       case (_, Left(None)) =>
         logger.trace(s"File transfer cancelled, unlocking")
         semaphore.increment
-          .map(_ => logger.debug(s"Released, currently transferring ${transferringCnt.get()} files"))
+          .map(_ => logger.debug(s"Semaphore released, currently transferring ${transferringCnt.get()}/$maxParallelism files"))
     }
   }
 
