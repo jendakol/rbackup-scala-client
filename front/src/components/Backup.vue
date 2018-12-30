@@ -8,11 +8,11 @@
 
             <v-card>
                 <v-card-title class="headline grey lighten-2" primary-title>
-                    Privacy Policy
+                    Add new backup set
                 </v-card-title>
 
                 <v-card-text>
-                    <v-text-field label="Name" v-model="newName"></v-text-field>
+                    <v-text-field label="Name" v-model="newName" v-on:keyup.enter="addNewBackupSet"></v-text-field>
                 </v-card-text>
 
                 <v-divider></v-divider>
@@ -87,21 +87,23 @@
                     });
             },
             addNewBackupSet() {
-                this.addDialog = false;
+                if (this.newName.trim() !== "") {
+                    this.addDialog = false;
 
-                this.asyncActionWithNotification("backupSetNew", {
-                        name: this.newName
-                    }, "Creating backup set", (resp) => new Promise((success, error) => {
-                        if (resp.success === true) {
-                            success("Backup set created!");
-                            this.refreshBackupSets()
-                        } else if (resp.success === false) {
-                            error("Backup set could not be created")
-                        } else {
-                            error("Backup set could not be created: " + resp.error)
-                        }
-                    })
-                );
+                    this.asyncActionWithNotification("backupSetNew", {
+                            name: this.newName
+                        }, "Creating backup set", (resp) => new Promise((success, error) => {
+                            if (resp.success === true) {
+                                success("Backup set created!");
+                                this.refreshBackupSets()
+                            } else if (resp.success === false) {
+                                error("Backup set could not be created")
+                            } else {
+                                error("Backup set could not be created: " + resp.error)
+                            }
+                        })
+                    );
+                }
             },
             removeBackupSet(id) {
                 this.deleteDialog = false;
