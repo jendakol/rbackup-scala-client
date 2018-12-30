@@ -50,36 +50,48 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
       implicit session: ServerSession): Result[List[DownloadResponse]] = {
     // TODO support DIRs download
 
+    def sendProgressUpdate(downloadedBytes: Long, speed: Double, isFinal: Boolean): Unit = {
+      if (isFinal) {
+        logger.trace(s"Sending final progress update for ${remoteFile.originalName} download")
+      } else {
+        logger.trace(s"Sending non-final progress update for ${remoteFile.originalName} download: $downloadedBytes, $speed")
+      }
+
+      wsApiController
+        .send(
+          WsMessage(
+            `type` = "fileTransferUpdate",
+            data = FileProgressUpdate(dest.pathAsString,
+                                      `type` = "Downloading",
+                                      if (isFinal) "done" else "downloading",
+                                      Some(remoteFileVersion.size),
+                                      Some(downloadedBytes),
+                                      Some(speed)).asJson
+          ),
+          ignoreFailure = true
+        )
+        .runAsync {
+          case Left(ex) => logger.debug("Could not send file download update", ex)
+        }(blockingScheduler)
+    }
+
     withSemaphore {
       logger.debug(s"Downloading ${transferringCnt.incrementAndGet()} files now")
 
-      val attemptCounter = new AtomicInteger(0)
+      val attemptsCounter = new AtomicInteger(0)
 
       cloudConnector
-        .download(remoteFileVersion, dest) { (downloadedBytes, speed, isFinal) =>
-          wsApiController
-            .send(
-              WsMessage(
-                `type` = "fileTransferUpdate",
-                data = FileProgressUpdate(dest.pathAsString,
-                                          `type` = "Downloading",
-                                          if (isFinal) "done" else "downloading",
-                                          Some(remoteFileVersion.size),
-                                          Some(downloadedBytes),
-                                          Some(speed)).asJson
-              ),
-              ignoreFailure = true
-            )
-            .runAsync {
-              case Left(ex) => logger.debug("Could not send file download update", ex)
-            }(blockingScheduler)
-        }
+        .download(remoteFileVersion, dest)(sendProgressUpdate)
         .doOnCancel(Task {
           logger.debug(s"Task was cancelled: download of ${dest.pathAsString}")
           downloadedFailedMeter.mark()
           transferringCnt.decrementAndGet()
         })
-        .restartIf(handleRetries(attemptCounter.incrementAndGet(), dest))
+        .restartIf(handleRetries(attemptsCounter, dest))
+        .doOnFinish(_ =>
+          Task {
+            sendProgressUpdate(0, 0, isFinal = true)
+        })
         .withResult {
           case Right(DownloadResponse.Downloaded(file, _)) =>
             logger.debug(s"File ${file.pathAsString} downloaded")
@@ -140,7 +152,7 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
           withSemaphore {
             logger.debug(s"Uploading ${transferringCnt.incrementAndGet()} files now")
 
-            val attemptCounter = new AtomicInteger(0)
+            val attemptsCounter = new AtomicInteger(0)
 
             cloudConnector
               .upload(file)(sendProgressUpdate)
@@ -150,7 +162,7 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
                 uploadedFailedMeter.mark()
                 transferringCnt.decrementAndGet()
               })
-              .restartIf(handleRetries(attemptCounter.incrementAndGet(), file))
+              .restartIf(handleRetries(attemptsCounter, file))
               .doOnFinish(_ =>
                 Task {
                   sendProgressUpdate(0, 0, isFinal = true)
@@ -217,7 +229,9 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
         .cancelable
     }
 
-  private def handleRetries(attemptNo: Int, file: File)(t: Throwable): Boolean = {
+  private def handleRetries(attemptsCounter: AtomicInteger, file: File)(t: Throwable): Boolean = {
+    val attemptNo = attemptsCounter.get
+
     if (attemptNo >= retries + 1) {
       logger.debug(s"Not retrying anymore ($attemptNo attempts) for file ${file.name}", t)
       false
