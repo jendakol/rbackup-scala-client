@@ -12,7 +12,9 @@
         <div v-else>
             <loading :active="true"
                      :can-cancel="false"
-                     :is-full-page="false"></loading>
+                     :is-full-page="false">
+                <div slot="after" class="backupRunning" :color="secondary">Backup running</div>
+            </loading>
         </div>
 
         <div>Last executed: {{this.backupSet.last_execution}}</div>
@@ -195,3 +197,15 @@
         }
     }
 </script>
+
+<style scoped lang="scss">
+    .backupRunning {
+        display: block;
+        padding: 10px;
+        width: 200px;
+        text-align: center;
+        position: relative;
+        left: -68px;
+        font-size: larger;
+    }
+</style>
