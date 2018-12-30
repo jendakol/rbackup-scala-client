@@ -181,7 +181,14 @@
                     console.log("Missed heartbeat!");
                     // this.initWs()
                 }
-            }, 3000)
+            }, 3000);
+
+            window.addEventListener('beforeunload', () => {
+                console.log("Closing the page");
+                if (this.ws.readyState === 1) {
+                    this.ws.send(JSON.stringify({type: "close"}));
+                }
+            }, false)
         },
         methods: {
             initWs(showNotif) {

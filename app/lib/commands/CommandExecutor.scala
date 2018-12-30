@@ -156,7 +156,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
   }
 
   private def processEvent(event: Event): Result[Unit] = event match {
-    case InitEvent => pureResult(())
+    case InitEvent | CloseEvent => pureResult(())
 
     case PageInitEvent(page) =>
       page match {

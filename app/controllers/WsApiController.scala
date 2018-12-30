@@ -90,7 +90,9 @@ class WsApiController @Inject()(
         }
       }.executeOnScheduler(blockingScheduler): Task[Either[AppException, Unit]]
     }.recoverWith {
-      case NonFatal(e) if ignoreFailure => pureResult(())
+      case NonFatal(e) if ignoreFailure =>
+        logger.debug("Ignoring failure in WS message send", e)
+        pureResult(())
     }
   }
 
@@ -114,9 +116,14 @@ class WsApiController @Inject()(
                 eventType <- cursor.get[String]("type")
                 event <- eventType match {
                   case "init" =>
-                    logger.info(s"Updating WS channel to $out")
+                    logger.info(s"Opened UI, setting WS channel to $out")
                     WsApiController.out.set(Some(out))
                     Right(InitEvent)
+
+                  case "close" =>
+                    logger.info(s"Closed UI, setting WS channel to NULL")
+                    WsApiController.out.set(None)
+                    Right(CloseEvent)
 
                   case "page-init" =>
                     cursor.get[PageInitEvent]("data")
@@ -150,3 +157,5 @@ sealed trait Event
 case object InitEvent extends Event
 
 case class PageInitEvent(page: String) extends Event
+
+case object CloseEvent extends Event
