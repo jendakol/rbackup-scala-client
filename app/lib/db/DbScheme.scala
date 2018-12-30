@@ -1,9 +1,12 @@
 package lib.db
 
+import lib.App
 import scalikejdbc._
 
 object DbScheme {
   def create(implicit session: DBSession): Unit = {
+    val currentVersionStr = App.versionStr
+
     sql"""
          |CREATE TABLE IF NOT EXISTS FILES
          |(
@@ -17,7 +20,7 @@ object DbScheme {
          |
          |create table if not exists settings
          |(
-         |    key varchar(200) not null,
+         |    key varchar(200) primary key not null,
          |    value varchar(65536) not null
          |);
          |
@@ -38,6 +41,10 @@ object DbScheme {
          |    primary key (path, set_id)
          |);
          |
+       """.stripMargin.executeUpdate().apply()
+
+    sql"""
+         |insert ignore into settings values ('db_version', ${currentVersionStr});
        """.stripMargin.executeUpdate().apply()
   }
 

@@ -7,7 +7,7 @@ import com.typesafe.scalalogging.StrictLogging
 import io.sentry.Sentry
 import lib.App._
 import lib._
-import lib.db.{Dao, DbScheme}
+import lib.db.{Dao, DbScheme, DbUpgrader}
 import lib.server.CloudConnector
 import lib.settings.Settings
 import monix.eval.Task
@@ -54,6 +54,7 @@ class AppModule(environment: Environment, configuration: Configuration)
 
   DB.autoCommit { implicit session =>
     DbScheme.create
+    DbUpgrader.upgrade
   }
 
   override def configure(): Unit = {
