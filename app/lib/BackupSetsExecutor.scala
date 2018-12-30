@@ -35,7 +35,7 @@ class BackupSetsExecutor @Inject()(dao: Dao,
           case Some(sid) =>
             if (!suspended) executeWaitingBackupSets()(sid)
             else {
-              logger.info("Executing backup sets is suspended")
+              logger.info("Execution of backup sets is suspended")
             }
 
           case None => logger.info("Could not process backup sets - missing server session")

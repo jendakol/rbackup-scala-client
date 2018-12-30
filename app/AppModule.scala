@@ -61,7 +61,7 @@ class AppModule(environment: Environment, configuration: Configuration)
 
     implicit val scheduler: Scheduler = Scheduler(
       executor = Executors.newScheduledThreadPool(4),
-      ec = ExecutionContext.fromExecutorService(Executors.newWorkStealingPool(16))
+      ec = ExecutionContext.fromExecutorService(Executors.newCachedThreadPool())
     )
 
     val F = Task.catsEffect
