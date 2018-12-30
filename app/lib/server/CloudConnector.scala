@@ -15,9 +15,9 @@ import io.circe.Json
 import io.circe.generic.extras.auto._
 import lib.App._
 import lib.AppException.ServerNotResponding
-import lib.{AppVersion, _}
 import lib.server.serverapi.ListFilesResponse.FilesList
 import lib.server.serverapi._
+import lib.{AppVersion, _}
 import monix.eval.Task
 import monix.execution.{Cancelable, Scheduler}
 import org.http4s
@@ -223,11 +223,18 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
       inputStream = new InputStreamWithSha256(cis)
       request <- createRequest(rootUri, inputStream)
       result <- exec(request)(pf)
-        .map { res => // cancel stats reporting and close the IS
-          fileStatsReporting.cancel()
-          inputStream.close()
-          logger.debug(s"End stats sending for ${file.pathAsString}, file was uploaded")
-          res
+        .doOnFinish { // cancel stats reporting and close the IS
+          case Some(ex) =>
+            fileStatsReporting.cancel()
+            inputStream.close()
+            logger.debug(s"End stats sending for ${file.pathAsString}, file upload failed", ex)
+            Task.unit
+
+          case None =>
+            fileStatsReporting.cancel()
+            inputStream.close()
+            logger.debug(s"End stats sending for ${file.pathAsString}, file was uploaded")
+            Task.unit
         }
         .doOnCancel(Task {
           logger.debug(s"End stats sending for ${file.pathAsString}, file upload was cancelled")
@@ -235,7 +242,6 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
           inputStream.close()
         })
     } yield {
-      fileStatsReporting.cancel()
       result
     }
   }
@@ -255,7 +261,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
             wrapWithStats(dest.newOutputStream(), callback(_, _, false))
           }.executeOnScheduler(blockingScheduler)
             .flatMap {
-              case (fileOs, canc) =>
+              case (fileOs, fileStatsSending) =>
                 resp.body.chunks
                   .evalMap { bytes =>
                     Task {
@@ -271,7 +277,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
                     val transferred = chunksSizes.sum
 
                     fileOs.close() // all data has been transferred
-                    canc.cancel()
+                    fileStatsSending.cancel()
 
                     if (clh.length != transferred) {
                       Left(AppException
@@ -292,8 +298,17 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
                   }
                   .doOnCancel(Task {
                     logger.debug(s"End stats sending for ${dest.pathAsString}, file upload was cancelled")
-                    canc.cancel()
+                    fileStatsSending.cancel()
                     fileOs.close()
+                  })
+                  .doOnFinish(f =>
+                    Task {
+                      f match {
+                        case Some(ex) => logger.debug(s"End stats sending for ${dest.pathAsString}, file upload failed", ex)
+                        case None => logger.debug(s"End stats sending for ${dest.pathAsString}, file upload was finished")
+                      }
+                      fileStatsSending.cancel()
+                      fileOs.close()
                   })
             }
             .onErrorRecover {
@@ -341,6 +356,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
                 pf.applyOrElse(
                   serverResponse,
                   (_: ServerResponse) => {
+                    logger.debug(s"Got HTTP ${resp.status.code} from server: $str")
                     failedResult(AppException.InvalidResponseException(resp.status.code, str.toString, "Unexpected status or content"))
                   }
                 )
