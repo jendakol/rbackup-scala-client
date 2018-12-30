@@ -1,3 +1,4 @@
+import java.io.IOException
 import java.util.concurrent.Executors
 
 import cats.effect.Effect
@@ -6,6 +7,7 @@ import com.google.inject.TypeLiteral
 import com.typesafe.scalalogging.StrictLogging
 import io.sentry.Sentry
 import lib.App._
+import lib.AppException.MultipleFailuresException
 import lib._
 import lib.db.{Dao, DbScheme, DbUpgrader}
 import lib.server.CloudConnector
@@ -26,6 +28,7 @@ import utils.AllowedWsApiOrigins
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import scala.util.control.NonFatal
 
 class AppModule(environment: Environment, configuration: Configuration)
     extends ScalaModule
@@ -54,11 +57,12 @@ class AppModule(environment: Environment, configuration: Configuration)
 
   DB.autoCommit { implicit session =>
     DbScheme.create
-    DbUpgrader.upgrade
   }
 
   override def configure(): Unit = {
     bindConfig(config.root(), "")(binder())
+
+    val rootMonitor = Monitor.noOp() // TODO
 
     implicit val scheduler: Scheduler = Scheduler(
       executor = Executors.newScheduledThreadPool(4),
@@ -70,7 +74,20 @@ class AppModule(environment: Environment, configuration: Configuration)
 
     val blockingScheduler = Scheduler.io()
 
-    val rootMonitor = Monitor.noOp() // TODO
+    val dao = new Dao(blockingScheduler)
+
+    // upgrade DB
+    DB.autoCommit { implicit session =>
+      val upgrader = new DbUpgrader(dao)
+      upgrader.upgrade.value.runSyncUnsafe(30.seconds) match {
+        case Right(_) => // ok
+        case Left(err @ MultipleFailuresException(causes)) =>
+          logger.error(s"Multiple failures while upgrading the DB:\n${causes.mkString("\n")}")
+          throw err
+        case Left(err) =>
+          throw err
+      }
+    }
 
     bind[AllowedWsApiOrigins].toInstance(AllowedWsApiOrigins(config.getStringList("allowedWsApiOrigins").asScala))
 
@@ -78,7 +95,6 @@ class AppModule(environment: Environment, configuration: Configuration)
     bind[DeviceId].toInstance(deviceId)
 
     val cloudConnector = CloudConnector.fromConfig(config.getConfig("cloudConnector"), blockingScheduler)
-    val dao = new Dao(blockingScheduler)
     val settings = new Settings(dao)
     val stateManager = new StateManager(deviceId, cloudConnector, dao, settings)
 
@@ -118,9 +134,20 @@ class AppModule(environment: Environment, configuration: Configuration)
 
     // startup:
 
-    stateManager.appInit().value.toIO.unsafeRunSync() match {
-      case Right(_) => settings.initializing(false)
-      case Left(err) => throw err
+    try {
+      stateManager.appInit().value.runSyncUnsafe(5.minutes) match {
+        case Right(_) => settings.initializing(false)
+        case Left(err) => throw err
+      }
+    } catch {
+      case e: IOException if e.getMessage.startsWith("Failed to connect") =>
+        settings.session(None).value.runSyncUnsafe(2.seconds)
+        logger.info("Could not initialize app because server is unavailable", e)
+        settings.initializing(false)
+
+      case NonFatal(e) =>
+        logger.error("Could not initialize app", e)
+        throw e
     }
   }
 

@@ -1,6 +1,6 @@
 package lib.db
 
-import lib.App
+import lib.{App, AppVersion}
 import scalikejdbc._
 
 object DbScheme {
@@ -43,9 +43,11 @@ object DbScheme {
          |
        """.stripMargin.executeUpdate().apply()
 
-    sql"""
-         |insert ignore into settings values ('db_version', ${currentVersionStr});
+    if (App.version > AppVersion(0, 1, 3)) {
+      sql"""
+           |insert ignore into settings values ('db_version', ${currentVersionStr});
        """.stripMargin.executeUpdate().apply()
+    }
   }
 
   def truncateAll(implicit session: DBSession): Unit = {

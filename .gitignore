@@ -17,3 +17,4 @@ dist
 node_modules
 front/package-lock.json
 *.log
+filecache*
