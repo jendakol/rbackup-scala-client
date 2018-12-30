@@ -251,7 +251,10 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
   private def shouldUpload(file: File): Result[Boolean] = {
     checkFileUpdated(file)
       .flatMap {
-        case false => settings.uploadSameContent
+        case false =>
+          settings.uploadSameContent.withResult {
+            case Right(true) => logger.debug(s"File $file not modified but 'uploadSameContent' is enabled - will upload anyway")
+          }
         case true => pureResult(true)
       }
   }
