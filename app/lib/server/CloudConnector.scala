@@ -333,7 +333,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
         resp.bodyAsText.compile.toList
           .map(parts => if (parts.isEmpty) None else Some(parts.mkString))
           .flatMap { str =>
-            logger.debug(s"Cloud response body: $str")
+            logger.trace(s"Cloud response body: $str")
 
             val jsonResult = str.map(io.circe.parser.parse) match {
               case Some(Right(json)) => pureResult(Some(json))
