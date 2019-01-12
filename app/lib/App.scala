@@ -84,6 +84,10 @@ object App {
       r.value.doOnCancel(callback)
     }
 
+    def doOnCancel(callback: Result[Unit]): Result[A] = EitherT {
+      r.value.doOnCancel(callback.value.map(_ => ()))
+    }
+
     def doOnFinish(callback: Option[Throwable] => Task[Unit]): Result[A] = EitherT {
       r.value.doOnFinish(callback)
     }
