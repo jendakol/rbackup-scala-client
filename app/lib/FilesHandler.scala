@@ -86,7 +86,6 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
           logger.debug(s"Task was cancelled: download of ${dest.pathAsString}")
           downloadedFailedMeter.mark()
           transferringCnt.decrementAndGet()
-          ()
         })
         .restartIf(handleRetries(attemptsCounter, dest))
         .doOnFinish(_ =>
@@ -162,7 +161,6 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
                 logger.debug(s"Task was cancelled: upload of ${file.pathAsString}")
                 uploadedFailedMeter.mark()
                 transferringCnt.decrementAndGet()
-                ()
               })
               .restartIf(handleRetries(attemptsCounter, file))
               .doOnFinish(_ =>

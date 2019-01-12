@@ -410,7 +410,7 @@ object CloudConnector {
 
   def fromConfig(config: Config, blockingScheduler: Scheduler)(implicit sch: Scheduler): CloudConnector = {
     val conf = pureconfig.loadConfigOrThrow[CloudConnectorConfiguration](config.withFallback(DefaultConfig))
-    val httpClient: Client[Task] = Http1Client[Task](conf.toBlazeConfig.copy(executionContext = sch)).runSyncUnsafe(Duration.Inf)
+    val httpClient: Client[Task] = Await.result(Http1Client[Task](conf.toBlazeConfig.copy(executionContext = sch)).runAsync, Duration.Inf)
 
     new CloudConnector(httpClient, conf.chunkSize, blockingScheduler)
   }
@@ -428,7 +428,7 @@ private case class CloudConnectorConfiguration(chunkSize: Int,
     idleTimeout = socketTimeout,
     userAgent = Option {
       org.http4s.headers.`User-Agent`
-        .parse("RBackup client " + App.versionStr)
+        .parse("RBackup client")
         .getOrElse(throw new IllegalArgumentException("Unsupported format of user-agent provided"))
     }
   )

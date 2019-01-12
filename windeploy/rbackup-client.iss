@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "RBackup Client"
-#define MyAppVersion "0.1.3"
+#define MyAppVersion "0.1"
 #define MyAppPublisher "Jenda Kolena"
 #define MyAppExeName "rbackup-client.exe"
 
@@ -18,7 +18,7 @@ AppPublisher={#MyAppPublisher}
 DefaultDirName={pf}\RBackupClient
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
-OutputBaseFilename=rbackup-client-setup-{#MyAppVersion}
+OutputBaseFilename=rbackup-client-setup
 Compression=lzma
 SolidCompression=yes
 MinVersion=0,5.01sp3
@@ -44,8 +44,5 @@ Filename: "net.exe"; Parameters: "start rbackup-client"; Flags: waituntiltermina
 Filename: "c:\Windows\System32\explorer.exe"; Parameters: """http://localhost:3370"""; Flags: postinstall unchecked runhidden; Description: "Show the client"
 
 [UninstallRun]
-Filename: "net.exe"; Parameters: "stop rbackup-client"; Flags: waituntilterminated runhidden
 Filename: "{app}\rbackup-client.exe"; Parameters: "uninstall"; StatusMsg: "Uninstalling the service..."
 
-[UninstallDelete]
-Type: filesandordirs; Name: "{app}\*"
