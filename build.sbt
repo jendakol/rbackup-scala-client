@@ -4,7 +4,7 @@ import scala.sys.process.Process
 
 lazy val Versions = new {
   val monix = "3.0.0-RC1"
-  val http4s = "0.18.18"
+  val http4s = "0.18.21"
   val scalikeJdbc = "3.3.1"
   val metricsVersion = "2.4.4"
 }

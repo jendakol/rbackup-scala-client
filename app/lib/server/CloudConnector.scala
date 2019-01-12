@@ -1,6 +1,6 @@
 package lib.server
 
-import java.io.{ByteArrayInputStream, InputStream, OutputStream}
+import java.io._
 import java.net.ConnectException
 import java.nio.file.{AccessDeniedException, Files}
 import java.util.concurrent.TimeoutException
@@ -27,11 +27,10 @@ import org.http4s.headers.{`Content-Disposition`, `Content-Length`}
 import org.http4s.multipart._
 import org.http4s.{Headers, Method, Request, Response, Status, Uri}
 import pureconfig.modules.http4s.uriReader
-import pureconfig.{CamelCase, ConfigFieldMapping, ProductHint}
+import pureconfig._
 import utils.CirceImplicits._
-import utils.{FileCopier, InputStreamWithSha256, StatsInputStream, StatsOutputStream}
+import utils._
 
-import scala.concurrent.Await
 import scala.concurrent.duration._
 
 class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler: Scheduler)(implicit scheduler: Scheduler)
@@ -53,11 +52,12 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
     logger.debug(s"Logging device $deviceId with username $username")
     App.leaveBreadcrumb("Logging in", Map("uri" -> rootUri, "username" -> username))
 
-    val request =
-      plainRequestToHost(Method.GET,
-                         rootUri,
-                         "account/login",
-                         Map("device_id" -> deviceId.value, "username" -> username, "password" -> password))
+    val request = plainRequestToHost(
+      Method.GET,
+      rootUri,
+      "account/login",
+      Map("device_id" -> deviceId.value, "username" -> username, "password" -> password)
+    )
 
     status(rootUri).flatMap { status =>
       exec(request) {

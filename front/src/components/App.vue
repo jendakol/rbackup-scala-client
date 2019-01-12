@@ -45,9 +45,12 @@
         },
         methods: {
             ajax(name, data) {
-                return axios.post("http://" + this.hostUrl + "/ajax-api", {name: name, data: data})
+                return axios.post("http://" + this.hostUrl + "/ajax-api", {name: name, data: data}, {timeout: 5000})
                     .then(t => {
                         return t.data;
+                    }).catch(err => {
+                        console.log(err);
+                        this.clientStatus = "DISCONNECTED"
                     })
             }, asyncActionWithNotification(actionName, data, initialText, responseToPromise) {
                 this.$snotify.async(initialText, () => new Promise((resolve, reject) => {

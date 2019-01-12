@@ -101,33 +101,35 @@ class BackupSetsExecutor @Inject()(dao: Dao,
             parseUnsafe(s"""{ "success": true, "name": "${bs.name}"}"""),
             ignoreFailure = true
           )
-        } yield {}).recoverWith {
-          case ex: MultipleFailuresException =>
-            logger.warn(s"Execution of backup set failed:\n${ex.causes.mkString("\n")}", ex)
-            dao.markAsProcessing(bs.id, processing = false) >>
-              updateUi() >>
-              wsApiController.send(
-                `type` = "backupFinish",
-                data = parseUnsafe(s"""{ "success": false, "name": "${bs.name}", "reason": "Multiple failures"}"""),
-                ignoreFailure = true
-              )
+        } yield {})
+          .recoverWith {
+            case ex: MultipleFailuresException =>
+              logger.warn(s"Execution of backup set failed:\n${ex.causes.mkString("\n")}", ex)
+              dao.markAsProcessing(bs.id, processing = false) >>
+                updateUi() >>
+                wsApiController.send(
+                  `type` = "backupFinish",
+                  data = parseUnsafe(s"""{ "success": false, "name": "${bs.name}", "reason": "Multiple failures"}"""),
+                  ignoreFailure = true
+                )
 
-          case e =>
-            logger.debug(s"Backup set execution failed ($bs)", e)
+            case e =>
+              logger.debug(s"Backup set execution failed ($bs)", e)
+              dao.markAsProcessing(bs.id, processing = false) >>
+                updateUi() >>
+                wsApiController.send(
+                  `type` = "backupFinish",
+                  data = parseUnsafe(s"""{ "success": false, "name": "${bs.name}", "reason": "Multiple failures"}"""),
+                  ignoreFailure = true
+                )
+          }
+          .doOnCancel {
             dao.markAsProcessing(bs.id, processing = false) >>
               updateUi() >>
-              wsApiController.send(
-                `type` = "backupFinish",
-                data = parseUnsafe(s"""{ "success": false, "name": "${bs.name}", "reason": "Multiple failures"}"""),
-                ignoreFailure = true
-              )
-        }
+              pureResult(logger.debug(s"Backup set cancelled ($bs)"))
+          }
       }
-      .doOnCancel {
-        dao.markAsProcessing(bs.id, processing = false) >>
-          updateUi() >>
-          pureResult(logger.debug(s"Backup set cancelled ($bs)"))
-      }
+
   }
 
   private def executionsSuspended: Result[Boolean] = {

@@ -13,7 +13,7 @@
             <loading :active="true"
                      :can-cancel="false"
                      :is-full-page="false">
-                <div slot="after" class="backupRunning" :color="secondary">Backup running</div>
+                <div slot="after" class="backupRunning">Backup running</div>
             </loading>
         </div>
 

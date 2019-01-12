@@ -200,14 +200,15 @@ object clientapi extends StrictLogging {
                         currentPath: String,
                         originalPath: String,
                         versions: Option[Vector[Version]]): Option[FileTreeNode] = {
-      pathTail match {
-        case Array(last) => Option(RegularFile(path = originalPath, name = last, versions = versions))
-        case parts =>
+      pathTail.length match {
+        case 0 => None
+        case 1 => Option(RegularFile(path = originalPath, name = pathTail.head, versions = versions))
+        case _ =>
           Option {
             Directory(
               path = currentPath,
-              name = parts.head,
-              children = process(parts.tail, currentPath + "/" + parts.tail.head, originalPath, versions).map(NonEmptyList.of(_))
+              name = pathTail.head,
+              children = process(pathTail.tail, currentPath + "/" + pathTail.tail.head, originalPath, versions).map(NonEmptyList.of(_))
             )
           }
       }

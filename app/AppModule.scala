@@ -26,7 +26,7 @@ import updater.{GithubConnector, LinuxServiceUpdaterExecutor, ServiceUpdaterExec
 import utils.AllowedWsApiOrigins
 
 import scala.collection.JavaConverters._
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, TimeoutException}
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
 
@@ -76,6 +76,7 @@ class AppModule(environment: Environment, configuration: Configuration)
 
     val dao = new Dao(blockingScheduler)
 
+    // TODO when this fails, does it break the app in prod?
     // upgrade DB
     DB.autoCommit { implicit session =>
       val upgrader = new DbUpgrader(dao)
@@ -134,6 +135,8 @@ class AppModule(environment: Environment, configuration: Configuration)
 
     // startup:
 
+    logger.info("Starting up")
+
     try {
       stateManager.appInit().value.runSyncUnsafe(5.minutes) match {
         case Right(_) => settings.initializing(false)
@@ -142,7 +145,11 @@ class AppModule(environment: Environment, configuration: Configuration)
     } catch {
       case e: IOException if e.getMessage.startsWith("Failed to connect") =>
         settings.session(None).value.runSyncUnsafe(2.seconds)
-        logger.info("Could not initialize app because server is unavailable", e)
+        logger.warn("Could not initialize app because server is unavailable", e)
+        settings.initializing(false)
+
+      case e: TimeoutException =>
+        logger.warn("Could not initialize app because server is unavailable", e)
         settings.initializing(false)
 
       case NonFatal(e) =>
