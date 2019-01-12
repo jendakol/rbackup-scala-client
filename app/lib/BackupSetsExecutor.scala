@@ -105,6 +105,7 @@ class BackupSetsExecutor @Inject()(dao: Dao,
           case ex: MultipleFailuresException =>
             logger.warn(s"Execution of backup set failed:\n${ex.causes.mkString("\n")}", ex)
             dao.markAsProcessing(bs.id, processing = false) >>
+              updateUi() >>
               wsApiController.send(
                 `type` = "backupFinish",
                 data = parseUnsafe(s"""{ "success": false, "name": "${bs.name}", "reason": "Multiple failures"}"""),
@@ -114,12 +115,18 @@ class BackupSetsExecutor @Inject()(dao: Dao,
           case e =>
             logger.debug(s"Backup set execution failed ($bs)", e)
             dao.markAsProcessing(bs.id, processing = false) >>
+              updateUi() >>
               wsApiController.send(
                 `type` = "backupFinish",
                 data = parseUnsafe(s"""{ "success": false, "name": "${bs.name}", "reason": "Multiple failures"}"""),
                 ignoreFailure = true
               )
         }
+      }
+      .doOnCancel {
+        dao.markAsProcessing(bs.id, processing = false) >>
+          updateUi() >>
+          pureResult(logger.debug(s"Backup set cancelled ($bs)"))
       }
   }
 

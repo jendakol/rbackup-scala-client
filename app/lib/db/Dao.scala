@@ -350,7 +350,7 @@ class Dao(blockingScheduler: Scheduler) extends StrictLogging {
 
   def markAsProcessing(backupSetId: Long, processing: Boolean = true): Result[Unit] = EitherT {
     Task {
-      logger.debug(s"Updating backed up set processing flag in DB")
+      logger.debug(s"Updating backed up set $backupSetId processing flag in DB tp $processing")
 
       DB.autoCommit { implicit session =>
         sql"""update backup_sets set processing = ${processing} where id = ${backupSetId} """.update().apply()
