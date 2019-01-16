@@ -41,7 +41,7 @@ object App {
   final val versionStr: String = "0.1.3"
   final val version: AppVersion = AppVersion(versionStr).getOrElse(throw new IllegalArgumentException("Could not parse versionStr"))
 
-  final val SentryDsn: Option[String] = Some("https://74fe77b3e5024c18bd850d09c4c775c4@sentry.io/1340234")
+  final val SentryDsn: Option[String] = None
 
   type Result[A] = EitherT[Task, AppException, A]
 
