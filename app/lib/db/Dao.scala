@@ -178,7 +178,7 @@ class Dao(blockingScheduler: Scheduler) extends StrictLogging {
       }: Either[AppException, Option[String]]
     }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
-        case NonFatal(e) => Left(DbException("Loading setting", e))
+        case NonFatal(e) => Left(DbException(s"Loading setting '$key'", e))
       }
   }
 

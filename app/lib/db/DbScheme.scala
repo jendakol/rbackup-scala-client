@@ -1,12 +1,10 @@
 package lib.db
 
-import lib.{App, AppVersion}
 import scalikejdbc._
 
+//noinspection SqlNoDataSourceInspection
 object DbScheme {
   def create(implicit session: DBSession): Unit = {
-    val currentVersionStr = App.versionStr
-
     sql"""
          |CREATE TABLE IF NOT EXISTS FILES
          |(
@@ -42,12 +40,6 @@ object DbScheme {
          |);
          |
        """.stripMargin.executeUpdate().apply()
-
-    if (App.version > AppVersion(0, 1, 3)) {
-      sql"""
-           |insert ignore into settings values ('db_version', ${currentVersionStr});
-       """.stripMargin.executeUpdate().apply()
-    }
   }
 
   def truncateAll(implicit session: DBSession): Unit = {

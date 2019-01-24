@@ -4,8 +4,8 @@ import cats.data.EitherT
 import com.typesafe.scalalogging.StrictLogging
 import lib.App._
 import lib.AppException.DbException
+import lib._
 import lib.db.DbUpgrader._
-import lib.{App, AppException, AppVersion}
 import monix.eval.Task
 import monix.execution.Scheduler
 import scalikejdbc._
@@ -48,7 +48,11 @@ class DbUpgrader(dao: Dao)(implicit sch: Scheduler) extends StrictLogging {
           }
           .toList
           .sequentially
-          .map(_ => ())
+          .flatMap { _ =>
+            dao
+              .setSetting("db_version", App.versionStr)
+              .map(_ => logger.debug(s"DB upgraded to version ${App.versionStr}"))
+          }
       }
   }
 }
