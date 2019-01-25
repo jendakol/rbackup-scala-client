@@ -6,7 +6,7 @@ function wait_for_service() {
     do
       echo -e "Waiting for rbackup"
 
-      if [ "$(curl "http://localhost:3369/status" 2>/dev/null)" == "{\"status\": \"RBackup running\"}" ]; then
+      if [ "$(curl "http://$RBACKUP_IP:3369/status" 2>/dev/null | jq -r .status)" == "RBackup running" ]; then
         break
       fi
 
@@ -24,6 +24,7 @@ function wait_for_service() {
 function client_test() {
     cd ci-tests  && \
      docker-compose up -d --build --force-recreate && \
+     export RBACKUP_IP=$(docker inspect citests_tests_1 | jq -r '.[0] | .NetworkSettings.Ports."3369/tcp" | .[0].HostIp') && \
      wait_for_service && \
      cd .. && \
      sbt ";clean;test" && \

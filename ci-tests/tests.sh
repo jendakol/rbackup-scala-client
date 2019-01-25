@@ -8,7 +8,7 @@ function upload() {
 
     result=$(curl -sS --header "Content-Type: multipart/form-data" -H "RBackup-Session-Pass: ${session_id}" \
         -F file=@"${file_name}" -F file-hash="${sha}" \
-        -X POST "http://localhost:3369/upload?file_path=theFileToBeUploaded.dat")
+        -X POST "http://$RBACKUP_IP:3369/upload?file_path=theFileToBeUploaded.dat")
 
     if  [[ ${result} == Failure* ]];
     then
@@ -28,7 +28,7 @@ function upload() {
 function list_files() {
     session_id=$1
 
-    result=$(curl -sS -H "RBackup-Session-Pass: ${session_id}" -X GET "http://localhost:3369/list/files/?")
+    result=$(curl -sS -H "RBackup-Session-Pass: ${session_id}" -X GET "http://$RBACKUP_IP:3369/list/files/?")
 
     if  [[ ${result} == Failure* ]];
     then
@@ -55,8 +55,8 @@ function assert() {
 
 echo -e "Running tests:\n"
 
-curl -sS "http://localhost:3369/account/register?username=rbackup&password=rbackup" > /dev/null \
- && session_id=$(curl -sS "http://localhost:3369/account/login?device_id=docker-tests&username=rbackup&password=rbackup" | jq '.session_id' | sed -e 's/^"//' -e 's/"$//') \
+curl -sS "http://$RBACKUP_IP:3369/account/register?username=rbackup&password=rbackup" > /dev/null \
+ && session_id=$(curl -sS "http://$RBACKUP_IP:3369/account/login?device_id=docker-tests&username=rbackup&password=rbackup" | jq '.session_id' | sed -e 's/^"//' -e 's/"$//') \
  && echo -e "SessionID: ${session_id} \n" \
  && upload ${session_id} "theFileToBeUploaded.dat" > /dev/null \
  && upload ${session_id} "theFileToBeUploaded.dat" > /dev/null \

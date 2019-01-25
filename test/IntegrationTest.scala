@@ -1,20 +1,29 @@
 import better.files.File
 import com.typesafe.config.ConfigFactory
-import lib.ServerSession
+import com.typesafe.scalalogging.StrictLogging
 import lib.server.CloudConnector
 import lib.server.serverapi._
+import lib.{DeviceId, ServerSession}
 import monix.execution.Scheduler.Implicits.global
 import org.http4s.Uri
 import org.scalatest.FunSuite
 import utils.Sha256
 import utils.TestOps._
 
-class IntegrationTest extends FunSuite {
+class IntegrationTest extends FunSuite with StrictLogging {
+  private val rbackupIp: String = {
+    val ip = System.getenv("RBACKUP_IP")
+
+    if (ip == "0.0.0.0") "localhost" else ip
+  }
+
   private val connector = CloudConnector.fromConfig(ConfigFactory.empty(), global)
-  private val rootUri = Uri.unsafeFromString("http://localhost:3369")
+  private val rootUri = Uri.unsafeFromString(s"http://$rbackupIp:3369")
+
+  logger.info(s"Using root URI $rootUri")
 
   test("read status") {
-    assertResult("RBackup running")(connector.status(rootUri).unwrappedFutureValue)
+    assertResult("RBackup running")(connector.status(rootUri).unwrappedFutureValue.status)
   }
 
   test("register account and login") {
@@ -24,7 +33,14 @@ class IntegrationTest extends FunSuite {
 
     assert(accountId.nonEmpty)
 
-    val LoginResponse.SessionCreated(session) = connector.login(rootUri, "rbackup-test", username, "password").unwrappedFutureValue
+    val LoginResponse.SessionCreated(session) = connector
+      .login(
+        rootUri = rootUri,
+        deviceId = DeviceId("rbackup-test"),
+        username = username,
+        password = "password"
+      )
+      .unwrappedFutureValue
 
     assertResult(rootUri)(session.rootUri)
   }
@@ -38,7 +54,16 @@ class IntegrationTest extends FunSuite {
     // login
     val username = randomString(10)
     connector.registerAccount(rootUri, username, "password").unwrappedFutureValue
-    val LoginResponse.SessionCreated(session) = connector.login(rootUri, "rbackup-test", username, "password").unwrappedFutureValue
+
+    val LoginResponse.SessionCreated(session) = connector
+      .login(
+        rootUri = rootUri,
+        deviceId = DeviceId("rbackup-test"),
+        username = username,
+        password = "password"
+      )
+      .unwrappedFutureValue
+
     implicit val s: ServerSession = session
 
     // list files
@@ -121,7 +146,16 @@ class IntegrationTest extends FunSuite {
     // login
     val username = randomString(10)
     connector.registerAccount(rootUri, username, "password").unwrappedFutureValue
-    val LoginResponse.SessionCreated(session) = connector.login(rootUri, "rbackup-test", username, "password").unwrappedFutureValue
+
+    val LoginResponse.SessionCreated(session) = connector
+      .login(
+        rootUri = rootUri,
+        deviceId = DeviceId("rbackup-test"),
+        username = username,
+        password = "password"
+      )
+      .unwrappedFutureValue
+
     implicit val s: ServerSession = session
 
     // upload 2 files
@@ -168,7 +202,16 @@ class IntegrationTest extends FunSuite {
     // login
     val username = randomString(10)
     connector.registerAccount(rootUri, username, "password").unwrappedFutureValue
-    val LoginResponse.SessionCreated(session) = connector.login(rootUri, "rbackup-test", username, "password").unwrappedFutureValue
+
+    val LoginResponse.SessionCreated(session) = connector
+      .login(
+        rootUri = rootUri,
+        deviceId = DeviceId("rbackup-test"),
+        username = username,
+        password = "password"
+      )
+      .unwrappedFutureValue
+
     implicit val s: ServerSession = session
 
     // upload 2 files
