@@ -122,7 +122,7 @@
                 }
             },
             findTreeNode(path) {
-                return JSPath.apply('..{.value === "' + path + '"}', this.fileTreeData)[0]
+                return JSPath.apply('..{.value === "' + path.replace(/\\/g,"\\\\") + '"}', this.fileTreeData)[0]
             },
             selectFilesInTree() {
                 if (!this.filesLoaded || !this.treeLoaded) {

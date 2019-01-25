@@ -1,5 +1,7 @@
 package lib.commands
 
+import java.nio.file.AccessDeniedException
+
 import better.files.File
 import cats.data.EitherT
 import cats.syntax.all._
@@ -109,26 +111,32 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
   }
 
   private def dirList(path: String): Result[Json] = {
-    val nodes = if (path != "") {
-      File(path).children
-        .filter(_.isReadable)
-        .map { file =>
-          if (file.isRegularFile) {
-            FileTreeNode.RegularFile(file, None)
-          } else {
-            FileTreeNode.Directory(file)
+    try {
+      val nodes = if (path != "") {
+        File(path).children
+          .filter(_.isReadable)
+          .map { file =>
+            if (file.isRegularFile) {
+              FileTreeNode.RegularFile(file, None)
+            } else {
+              FileTreeNode.Directory(file)
+            }
           }
-        }
-        .toSeq
-    } else {
-      File.roots
-        .filter(_.isReadable)
-        .map(FileTreeNode.Directory(_))
-        .toSeq
-    }
+          .toSeq
+      } else {
+        File.roots
+          .filter(_.isReadable)
+          .map(FileTreeNode.Directory(_))
+          .toSeq
+      }
 
-    pureResult {
-      nodes.map(_.toJson).asJson
+      pureResult {
+        nodes.map(_.toJson).asJson
+      }
+    } catch {
+      case ade: AccessDeniedException =>
+        logger.info(s"Could not list $path", ade)
+        pureResult(Seq.empty[FileTreeNode].asJson)
     }
   }
 
