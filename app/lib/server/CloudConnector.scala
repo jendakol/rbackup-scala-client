@@ -26,14 +26,15 @@ import org.http4s.client.blaze.{BlazeClientConfig, Http1Client}
 import org.http4s.headers.{`Content-Disposition`, `Content-Length`}
 import org.http4s.multipart._
 import org.http4s.{Headers, Method, Request, Response, Status, Uri}
-import pureconfig.modules.http4s.uriReader
 import pureconfig._
+import pureconfig.modules.http4s.uriReader
 import utils.CirceImplicits._
 import utils._
 
 import scala.concurrent.duration._
 
-class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler: Scheduler)(implicit scheduler: Scheduler)
+class CloudConnector(httpClient: Client[Task], filesHttpClient: Client[Task], chunkSize: Int, blockingScheduler: Scheduler)(
+    implicit scheduler: Scheduler)
     extends StrictLogging {
 
   // TODO monitoring
@@ -98,7 +99,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
     logger.debug(s"Downloading file $fileVersion")
     App.leaveBreadcrumb("Downloading", Map("file" -> fileVersion))
 
-    httpClient
+    filesHttpClient
       .fetch(authenticatedRequest(Method.GET, "download", Map("file_version_id" -> fileVersion.version.toString))) {
         case resp if resp.status == Status.Ok => receiveStreamedFile(fileVersion, dest, resp)(callback)
         case resp if resp.status == Status.NotFound => Task.now(Right(DownloadResponse.FileVersionNotFound(fileVersion)))
@@ -150,6 +151,8 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
 
   def status(rootUri: Uri): Result[StatusResponse] = {
     logger.debug("Requesting status from server")
+
+    //    call with different client
 
     exec(plainRequestToHost(Method.GET, rootUri, "status")) {
       case ServerResponse(Status.Ok, Some(json)) => json.as[StatusResponse].toResult
@@ -222,7 +225,7 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
       (cis, fileStatsReporting) = wrapWithStats(fis, callback(_, _, false))
       inputStream = new InputStreamWithSha256(cis)
       request <- createRequest(rootUri, inputStream)
-      result <- exec(request)(pf)
+      result <- exec(request, filesHttpClient)(pf)
         .doOnFinish { // cancel stats reporting and close the IS
           case Some(ex) =>
             fileStatsReporting.cancel()
@@ -323,7 +326,8 @@ class CloudConnector(httpClient: Client[Task], chunkSize: Int, blockingScheduler
     }
   }
 
-  private def exec[A](request: Request[Task])(pf: PartialFunction[ServerResponse, Result[A]]): Result[A] = EitherT {
+  private def exec[A](request: Request[Task], httpClient: Client[Task] = httpClient)(
+      pf: PartialFunction[ServerResponse, Result[A]]): Result[A] = EitherT {
     logger.debug(s"Cloud request: $request")
 
     httpClient
@@ -411,8 +415,9 @@ object CloudConnector {
   def fromConfig(config: Config, blockingScheduler: Scheduler)(implicit sch: Scheduler): CloudConnector = {
     val conf = pureconfig.loadConfigOrThrow[CloudConnectorConfiguration](config.withFallback(DefaultConfig))
     val httpClient: Client[Task] = Http1Client[Task](conf.toBlazeConfig.copy(executionContext = sch)).runSyncUnsafe(Duration.Inf)
+    val filesHttpClient: Client[Task] = Http1Client[Task](conf.toBlazeConfig.copy(executionContext = sch)).runSyncUnsafe(Duration.Inf)
 
-    new CloudConnector(httpClient, conf.chunkSize, blockingScheduler)
+    new CloudConnector(httpClient, filesHttpClient, conf.chunkSize, blockingScheduler)
   }
 }
 
