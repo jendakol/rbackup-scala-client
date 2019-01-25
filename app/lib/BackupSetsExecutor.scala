@@ -11,6 +11,7 @@ import lib.App.{parseUnsafe, _}
 import lib.AppException.MultipleFailuresException
 import lib.db.{BackupSet, Dao}
 import lib.settings.Settings
+import monix.eval.Task
 import monix.execution.{Cancelable, Scheduler}
 
 import scala.concurrent.duration._
@@ -57,7 +58,7 @@ class BackupSetsExecutor @Inject()(dao: Dao,
     }).runAsync {
       case Right(sets) =>
         if (sets.nonEmpty)
-          logger.info(s"All backup sets were processes successfully (${sets.map(_.name).mkString(", ")})")
+          logger.debug(s"All backup sets were started (${sets.map(_.name).mkString(", ")})")
 
       case Left(ex: MultipleFailuresException) =>
         ex.causes.foreach(Sentry.capture)
@@ -93,7 +94,7 @@ class BackupSetsExecutor @Inject()(dao: Dao,
           _ <- dao.markAsProcessing(bs.id)
           _ <- updateUi()
           files <- dao.listFilesInBackupSet(bs.id)
-          _ <- files.map(filesHandler.upload(_)).inparallel // TODO
+          _ <- files.map(filesHandler.upload(_)).inparallel
           _ <- dao.markAsExecutedNow(bs.id)
           _ <- updateUi()
           _ <- wsApiController.send(
@@ -119,9 +120,24 @@ class BackupSetsExecutor @Inject()(dao: Dao,
                 updateUi() >>
                 wsApiController.send(
                   `type` = "backupFinish",
-                  data = parseUnsafe(s"""{ "success": false, "name": "${bs.name}", "reason": "Multiple failures"}"""),
+                  data = parseUnsafe(s"""{ "success": false, "name": "${bs.name}", "reason": "${e.getMessage}"}"""),
                   ignoreFailure = true
                 )
+          }
+          .doOnFinish {
+            case None =>
+              Task {
+                logger.info(s"Backup set $bs finished successfully")
+              }
+            case Some(ex) =>
+              logger.debug(s"Backup set execution failed ($bs)", ex)
+              (dao.markAsProcessing(bs.id, processing = false) >>
+                updateUi() >>
+                wsApiController.send(
+                  `type` = "backupFinish",
+                  data = parseUnsafe(s"""{ "success": false, "name": "${bs.name}", "reason": "${ex.getClass.getSimpleName}"}"""),
+                  ignoreFailure = true
+                )).unwrapResult
           }
           .doOnCancel {
             dao.markAsProcessing(bs.id, processing = false) >>
