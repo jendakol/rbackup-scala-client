@@ -112,83 +112,93 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
     if (file.isDirectory) {
       uploadDir(file)
     } else {
-      shouldUpload(file).flatMap {
-        case false =>
-          logger.debug(s"File $file was not updated, will NOT be uploaded")
-          pureResult(List(None))
+      if (file.exists) {
 
-        case true =>
-          logger.debug(s"File $file updated (or settings override that), will be uploaded")
+        shouldUpload(file).flatMap {
+          case false =>
+            logger.debug(s"File $file was not updated, will NOT be uploaded")
+            pureResult(List(None))
 
-          val finalStatsSent = new AtomicBoolean(false)
+          case true =>
+            logger.debug(s"File $file updated (or settings override that), will be uploaded")
 
-          def sendProgressUpdate(uploadedBytes: Long, speed: Double, isFinal: Boolean): Unit = finalStatsSent.synchronized {
-            if (!finalStatsSent.get) {
-              val status = if (isFinal) {
-                finalStatsSent.set(true)
-                logger.debug(s"Sending final progress update for $file upload")
-                "done"
+            val finalStatsSent = new AtomicBoolean(false)
+
+            def sendProgressUpdate(uploadedBytes: Long, speed: Double, isFinal: Boolean): Unit = finalStatsSent.synchronized {
+              if (!finalStatsSent.get) {
+                val status = if (isFinal) {
+                  finalStatsSent.set(true)
+                  logger.debug(s"Sending final progress update for $file upload")
+                  "done"
+                } else {
+                  logger.debug(s"Sending non-final progress update for $file upload: $uploadedBytes, $speed")
+                  "uploading"
+                }
+
+                wsApiController
+                  .send(
+                    WsMessage(
+                      `type` = "fileTransferUpdate",
+                      data = FileProgressUpdate(file.pathAsString,
+                                                `type` = "Uploading",
+                                                status,
+                                                Some(file.size),
+                                                Some(uploadedBytes),
+                                                Some(speed)).asJson
+                    ),
+                    ignoreFailure = true
+                  )
+                  .runAsync {
+                    case Left(ex) => logger.debug("Could not send file upload update", ex)
+                  }(blockingScheduler)
               } else {
-                logger.debug(s"Sending non-final progress update for $file upload: $uploadedBytes, $speed")
-                "uploading"
+                logger.debug(s"Will NOT send progress update for $file, final stats already sent")
               }
-
-              wsApiController
-                .send(
-                  WsMessage(
-                    `type` = "fileTransferUpdate",
-                    data = FileProgressUpdate(file.pathAsString,
-                                              `type` = "Uploading",
-                                              status,
-                                              Some(file.size),
-                                              Some(uploadedBytes),
-                                              Some(speed)).asJson
-                  ),
-                  ignoreFailure = true
-                )
-                .runAsync {
-                  case Left(ex) => logger.debug("Could not send file upload update", ex)
-                }(blockingScheduler)
-            } else {
-              logger.debug(s"Will NOT send progress update for $file, final stats already sent")
             }
-          }
 
-          withSemaphore {
-            val attemptsCounter = new AtomicInteger(0)
-
-            cloudConnector
-              .upload(file)(sendProgressUpdate)
-              .doOnCancel(Task {
-                sendProgressUpdate(0, 0, isFinal = true)
-                logger.debug(s"Task was cancelled: upload of ${file.pathAsString}")
-                uploadedFailedMeter.mark()
-                ()
-              })
-              .restartIf(handleRetries(attemptsCounter, file))
-              .doOnFinish(_ =>
-                Task {
-                  sendProgressUpdate(0, 0, isFinal = true)
-              })
-              .withResult {
-                case Right(UploadResponse.Uploaded(_)) =>
-                  logger.debug(s"File ${file.pathAsString} uploaded")
-                  uploadedMeter.mark()
-
-                case Right(UploadResponse.Sha256Mismatch) =>
-                  logger.info(s"SHA256 mismatch while uploading file ${file.pathAsString}")
-                  uploadedFailedMeter.mark()
-
-                case Left(appException) =>
-                  logger.info(s"Error while uploading file ${file.pathAsString}", appException)
-                  uploadedFailedMeter.mark()
-              }
-              .flatMap { r =>
-                updateFilesRegistry(file, r)
-                  .map(_ => List(Option(r)))
-              }
-          }
+            upload(file, sendProgressUpdate).map(r => List(Option(r))) // TODO this is hack ;-)
+        }
+      } else {
+        logger.debug(s"File $file could not be uploaded, because it doesn't exist")
+        pureResult(List.empty)
       }
+    }
+  }
+
+  private def upload(file: File, sendProgressUpdate: (Long, Double, Boolean) => Unit)(
+      implicit session: ServerSession): Result[UploadResponse] = {
+    withSemaphore {
+      val attemptsCounter = new AtomicInteger(0)
+
+      cloudConnector
+        .upload(file)(sendProgressUpdate)
+        .doOnCancel(Task {
+          sendProgressUpdate(0, 0, true)
+          logger.debug(s"Task was cancelled: upload of ${file.pathAsString}")
+          uploadedFailedMeter.mark()
+          ()
+        })
+        .restartIf(handleRetries(attemptsCounter, file))
+        .doOnFinish(_ =>
+          Task {
+            sendProgressUpdate(0, 0, true)
+        })
+        .withResult {
+          case Right(UploadResponse.Uploaded(_)) =>
+            logger.debug(s"File ${file.pathAsString} uploaded")
+            uploadedMeter.mark()
+
+          case Right(UploadResponse.Sha256Mismatch) =>
+            logger.info(s"SHA256 mismatch while uploading file ${file.pathAsString}")
+            uploadedFailedMeter.mark()
+
+          case Left(appException) =>
+            logger.info(s"Error while uploading file ${file.pathAsString}", appException)
+            uploadedFailedMeter.mark()
+        }
+        .flatMap { r =>
+          updateFilesRegistry(file, r).map(_ => r)
+        }
     }
   }
 
