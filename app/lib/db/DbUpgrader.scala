@@ -24,6 +24,9 @@ class DbUpgrader(dao: Dao)(implicit sch: Scheduler) extends StrictLogging {
       .flatMap { currentVersion =>
         logger.debug(s"Current DB version: $currentVersion")
 
+        if (currentVersion > App.version)
+          throw new IllegalStateException(s"Cannot run with newer DB version (is $currentVersion, app ${App.version})")
+
         val upgrades = VersionsChanges.filterKeys(_ > currentVersion)
 
         upgrades
