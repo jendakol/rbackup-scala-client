@@ -1,5 +1,7 @@
 package lib.commands
 
+import java.time.Duration
+
 import better.files.File
 import cats.data.EitherT
 import com.typesafe.scalalogging.StrictLogging
@@ -9,9 +11,9 @@ import io.circe.generic.extras.auto._
 import io.circe.syntax._
 import javax.inject.{Inject, Singleton}
 import lib.App._
-import lib.AppException.LoginRequired
+import lib.AppException.{InvalidArgument, LoginRequired}
 import lib.client.clientapi.FileTree
-import lib.db.Dao
+import lib.db.{BackupSet, Dao}
 import lib.settings.Settings
 import lib.{App, AppException, ServerSession, _}
 import monix.eval.Task
@@ -33,13 +35,7 @@ class BackupCommandExecutor @Inject()(dao: Dao,
       App.leaveBreadcrumb("Listing backup sets")
 
       dao.listAllBackupSets().map { bss =>
-        val sets = bss.map { bs =>
-          val lastTime = bs.lastExecution.map(DateTimeFormatter.format).getOrElse("never")
-          val nextTime = bs.lastExecution.map(_.plus(bs.frequency)).map(DateTimeFormatter.format).getOrElse("soon")
-
-          parseUnsafe(
-            s"""{ "id": ${bs.id}, "name":"${bs.name}", "processing": ${bs.processing}, "last_execution": "$lastTime", "next_execution": "$nextTime" }""")
-        }
+        val sets = bss.map(toJson)
 
         parseUnsafe(s"""{"success": true, "data": [${sets.mkString(",")}]}""")
       }
@@ -64,7 +60,7 @@ class BackupCommandExecutor @Inject()(dao: Dao,
       }
 
     case BackupSetFilesUpdateCommand(id, files) =>
-      App.leaveBreadcrumb("Updating backup set files", Map("files" -> files))
+      App.leaveBreadcrumb("Updating backup set files", Map("id" -> id, "files" -> files))
 
       for {
         _ <- updateBackupSetFilesList(id, files)
@@ -76,6 +72,24 @@ class BackupCommandExecutor @Inject()(dao: Dao,
         )
       } yield JsonSuccess
 
+    case BackupSetFrequencyUpdateCommand(id, freqMinutes) =>
+      App.leaveBreadcrumb("Updating backup set frequency", Map("id" -> id, "minutes" -> freqMinutes))
+
+      dao.getBackupSet(id).flatMap {
+        case Some(bs) =>
+          val updated = bs.copy(frequency = Duration.ofMinutes(freqMinutes))
+
+          dao
+            .updateBackupSet(updated)
+            .map { _ =>
+              val nextTime = updated.lastExecution.map(_.plus(updated.frequency)).map(DateTimeFormatter.format).getOrElse("soon")
+              parseUnsafe(s"""{ "success": true, "data": {"next_execution": "$nextTime"} }""")
+            }
+
+        case None =>
+          failedResult(InvalidArgument(s"Could not finx backup set with ID $id"))
+      }
+
     case BackupSetNewCommand(name) =>
       App.leaveBreadcrumb("Creating backup set", Map("name" -> name))
       dao.createBackupSet(name).mapToJsonSuccess
@@ -83,6 +97,15 @@ class BackupCommandExecutor @Inject()(dao: Dao,
     case BackupSetDeleteCommand(id) =>
       App.leaveBreadcrumb("Deleting backup set", Map("id" -> id))
       dao.deleteBackupSet(id).mapToJsonSuccess
+  }
+
+  private def toJson(bs: BackupSet): Json = {
+    val lastTime = bs.lastExecution.map(DateTimeFormatter.format).getOrElse("never")
+    val nextTime = bs.lastExecution.map(_.plus(bs.frequency)).map(DateTimeFormatter.format).getOrElse("soon")
+
+    parseUnsafe {
+      s"""{ "id": ${bs.id}, "name":"${bs.name}", "processing": ${bs.processing}, "last_execution": "$lastTime", "next_execution": "$nextTime", "frequency": ${bs.frequency.toMinutes} }"""
+    }
   }
 
   private def backedUpList: EitherT[Task, AppException, Json] = {

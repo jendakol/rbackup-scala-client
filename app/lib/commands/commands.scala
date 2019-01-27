@@ -16,8 +16,9 @@ object Command {
     case "backupSetExecute" => data.flatMap(_.as[BackupSetExecuteCommand].toOption)
     case "backupSetsList" => Some(BackupSetsListCommand)
     case "backupSetNew" => data.flatMap(_.as[BackupSetNewCommand].toOption)
-
     case "backupSetDelete" => data.flatMap(_.as[BackupSetDeleteCommand].toOption)
+    case "backupSetFrequency" => data.flatMap(_.as[BackupSetFrequencyUpdateCommand].toOption)
+
     case "upload" => data.flatMap(_.as[UploadCommand].toOption)
     case "removeRemoteFile" => data.flatMap(_.as[RemoveRemoteFile].toOption)
     case "removeRemoteFileVersion" => data.flatMap(_.as[RemoveRemoteFileVersion].toOption)
@@ -33,6 +34,7 @@ object Command {
     case "cancelTask" => data.flatMap(_.as[CancelTaskCommand].toOption)
     case "settingsLoad" => Some(LoadSettingsCommand)
     case "settingsSave" => data.flatMap(_.as[SaveSettingsCommand].toOption)
+
     case _ => None
   }
 }
@@ -52,6 +54,8 @@ case object BackupSetsListCommand extends BackupCommand
 case class BackupSetNewCommand(name: String) extends BackupCommand
 
 case class BackupSetDeleteCommand(id: Long) extends BackupCommand
+
+case class BackupSetFrequencyUpdateCommand(id: Long, minutes: Int) extends BackupCommand
 
 /* -- */
 

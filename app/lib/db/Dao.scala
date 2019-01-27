@@ -244,7 +244,26 @@ class Dao(blockingScheduler: Scheduler) extends StrictLogging {
       Right(()): Either[AppException, Unit]
     }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
-        case NonFatal(e) => Left(DbException("Creating backup set", e))
+        case NonFatal(e) => Left(DbException("Deleting backup set", e))
+      }
+  }
+
+  def updateBackupSet(bs: BackupSet): Result[Unit] = EitherT {
+    Task {
+      logger.debug(s"Updating backup set ID '${bs.id}' from DB")
+
+      val freq = bs.frequency.toMinutes
+
+      DB.autoCommit { implicit session =>
+        sql"""update backup_sets set name = ${bs.name}, frequency = $freq  where id = ${bs.id}""".update().apply()
+      }
+
+      logger.debug(s"Backup set ID ${bs.id} updated")
+
+      Right(()): Either[AppException, Unit]
+    }.executeOnScheduler(blockingScheduler)
+      .onErrorRecover {
+        case NonFatal(e) => Left(DbException("Updating backup set", e))
       }
   }
 

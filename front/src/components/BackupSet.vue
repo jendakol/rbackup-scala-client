@@ -17,8 +17,24 @@
             </loading>
         </div>
 
-        <div>Last executed: {{this.backupSet.last_execution}}</div>
-        <div>Next execution: {{this.backupSet.next_execution}}</div>
+        <v-container grid-list-xl>
+            <v-layout wrap fluid align-center>
+                <v-flex xs10 sm10>
+                    <div>Last executed: {{this.backupSet.last_execution}}</div>
+                    <div>Next execution: {{this.backupSet.next_execution}}</div>
+                </v-flex>
+
+                <v-flex xs2 sm2 d-flex>
+                    <v-select
+                            :items="backupFrequencyItems"
+                            v-model="backupFrequency"
+                            @change="updateFrequency"
+                            outline
+                            label="Backup frequency"
+                    ></v-select>
+                </v-flex>
+            </v-layout>
+        </v-container>
 
         <v-container fluid fill-height>
 
@@ -54,6 +70,16 @@
                 treeLoaded: false,
                 filesLoaded: false,
                 loadingShow: true,
+                backupFrequencyItems: [
+                    {text: "2 hours", value: 120},
+                    {text: "4 hours", value: 240},
+                    {text: "6 hours", value: 360},
+                    {text: "8 hours", value: 480},
+                    {text: "12 hours", value: 12 * 60},
+                    {text: "24 hours", value: 24 * 60},
+                    {text: "48 hours", value: 48 * 60},
+                ],
+                backupFrequency: this.backupSet.frequency,
                 loadData: (oriNode, resolve) => {
                     let path = oriNode.data.value;
 
@@ -94,6 +120,12 @@
             saveBackupSelection() {
                 this.ajax("backupSetFiles", {id: this.backupSet.id, paths: this.backupSetFiles})
             },
+            updateFrequency() {
+                this.ajax("backupSetFrequency", {id: this.backupSet.id, minutes: this.backupFrequency})
+                    .then(resp => {
+                        this.backupSet.next_execution = resp.data.next_execution;
+                    })
+            },
             receiveWs(message) {
                 switch (message.type) {
                     case "backupSetUpdate": {
@@ -122,7 +154,7 @@
                 }
             },
             findTreeNode(path) {
-                return JSPath.apply('..{.value === "' + path.replace(/\\/g,"\\\\") + '"}', this.fileTreeData)[0]
+                return JSPath.apply('..{.value === "' + path.replace(/\\/g, "\\\\") + '"}', this.fileTreeData)[0]
             },
             selectFilesInTree() {
                 if (!this.filesLoaded || !this.treeLoaded) {
