@@ -30,7 +30,7 @@ trait StatsStream extends AutoCloseable {
     }
 
     val speed: Double = currentSpeed(secondsStats.clone(), secondIndex)
-    println("--")
+
     stats.accumulateAndGet((0 /*not used*/, speed), (oldData: (Long, Double), newData: (Long, Double)) => {
       (oldData._1, newData._2)
     })
@@ -96,12 +96,6 @@ class StatsOutputStream(output: OutputStream, override protected val buckets: In
 object StatsStreams {
   private[utils] def currentSpeed(data: Array[Int], secondIndex: Int): Double = {
     val unrolled = data.slice(secondIndex + 1, data.length) ++ data.slice(0, secondIndex)
-    println(s"si: $secondIndex data: ${data.mkString("[", ",", "]")} unrolled: ${unrolled.mkString("[", ",", "]")}")
-
-    unrolled.zipWithIndex.map {
-      case (b, i) =>
-        println(s"$b x ${(i + 1) / 10.0}")
-        b * ((i + 1) / 10.0)
-    }.sum / 1000.0 // in kBps
+    unrolled.zipWithIndex.map { case (b, i) => b * ((i + 1) / 10.0) }.sum / 1000.0 // in kBps
   }
 }
