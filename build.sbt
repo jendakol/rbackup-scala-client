@@ -87,7 +87,7 @@ frontEndBuild := (frontEndBuild dependsOn cleanFrontEndBuild).value
 
 dist := (dist dependsOn frontEndBuild).value
 
-lazy val AppModulePath = "app/lib/App.scala"
+lazy val ConstantsPath = "app/lib/Constants.scala"
 
 
 lazy val setVersionInSources = taskKey[Unit]("Sets build version into sources")
@@ -99,13 +99,13 @@ setVersionInSources := {
   val version = sys.env.getOrElse("VERSION", throw new IllegalArgumentException("Missing VERSION env property"))
   println(s"Setting app version to $version")
   
-  val src = Source.fromFile(AppModulePath).mkString
+  val src = Source.fromFile(ConstantsPath).mkString
   val updated = src.replaceAll(
     """final val versionStr: String = "\d+.\d+.\d+"""",
     s"""final val versionStr: String = "$version""""
   )
 
-  val writer = new PrintWriter(new File(AppModulePath))
+  val writer = new PrintWriter(new File(ConstantsPath))
   writer.write(updated)
   writer.close()
 }
@@ -120,13 +120,13 @@ setSentryDsnInSources := {
   sys.env.get("SENTRY_DSN").foreach { dsn =>
     println(s"Setting Sentry DSN")
 
-    val src = Source.fromFile(AppModulePath).mkString
+    val src = Source.fromFile(ConstantsPath).mkString
     val updated = src.replace(
       """SentryDsn: Option[String] = None""",
       s"""SentryDsn: Option[String] = Some("$dsn")"""
     )
 
-    val writer = new PrintWriter(new File(AppModulePath))
+    val writer = new PrintWriter(new File(ConstantsPath))
     writer.write(updated)
     writer.close()
   }

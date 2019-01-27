@@ -37,11 +37,8 @@ class App @Inject()(backupSetsExecutor: BackupSetsExecutor, updater: Updater)(li
   }
 }
 
-object App {
-  final val versionStr: String = "0.1.3"
+object App extends Constants {
   final val version: AppVersion = AppVersion(versionStr).getOrElse(throw new IllegalArgumentException("Could not parse versionStr"))
-
-  final val SentryDsn: Option[String] = None
 
   type Result[A] = EitherT[Task, AppException, A]
 
