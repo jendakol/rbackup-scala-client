@@ -29,6 +29,8 @@
     <logger name="com.zaxxer" level="INFO"/>
     <logger name="scalikejdbc" level="INFO"/>
 
+    <logger name="play.filters.hosts.AllowedHostsFilter" level="ERROR"/>
+
     <logger name="ch.qos.logback" level="OFF" additivity="false"/>
 
     <statusListener class="ch.qos.logback.core.status.NopStatusListener"/>
