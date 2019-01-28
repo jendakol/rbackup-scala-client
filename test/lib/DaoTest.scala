@@ -3,16 +3,14 @@ package lib
 import java.time.{Duration, Instant, ZoneId, ZonedDateTime}
 
 import better.files.File
-import lib.db.{Dao, DbScheme}
+import lib.db.Dao
 import lib.server.serverapi.{RemoteFile, RemoteFileVersion}
 import monix.execution.Scheduler
 import monix.execution.Scheduler.Implicits.global
-import org.scalatest.{BeforeAndAfterEach, FunSuite}
-import scalikejdbc.config.DBs
 import scalikejdbc.{ConnectionPool, DB, _}
 import utils.TestOps._
 
-class DaoTest extends FunSuite with BeforeAndAfterEach {
+class DaoTest extends TestWithDB {
 
   // TODO add all methods
 
@@ -116,18 +114,4 @@ class DaoTest extends FunSuite with BeforeAndAfterEach {
       ))(dao.listBackupSetsToExecute().unwrappedFutureValue.map(_.copy(lastExecution = None)))
 
   }
-
-  override protected def beforeEach(): Unit = {
-    ConnectionPool.singleton("jdbc:h2:tcp://localhost:1521/test", "sa", "")
-
-    DB.autoCommit { implicit session =>
-      DbScheme.create
-      DbScheme.truncateAll
-    }
-  }
-
-  override protected def afterEach(): Unit = {
-    DBs.close()
-  }
-
 }

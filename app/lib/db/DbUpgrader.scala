@@ -29,6 +29,8 @@ class DbUpgrader(dao: Dao)(implicit sch: Scheduler) extends StrictLogging {
 
         val upgrades = VersionsChanges.filterKeys(_ > currentVersion)
 
+        //        prvoinslatace !!!!
+
         upgrades
           .map {
             case (targetVersion, query) =>
@@ -51,11 +53,7 @@ class DbUpgrader(dao: Dao)(implicit sch: Scheduler) extends StrictLogging {
           }
           .toList
           .sequentially
-          .flatMap { _ =>
-            dao
-              .setSetting("db_version", App.versionStr)
-              .map(_ => logger.debug(s"DB upgraded to version ${App.versionStr}"))
-          }
+          .map(_ => ())
       }
   }
 }
