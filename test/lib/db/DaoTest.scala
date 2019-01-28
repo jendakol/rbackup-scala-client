@@ -1,9 +1,9 @@
-package lib
+package lib.db
 
 import java.time.{Duration, Instant, ZoneId, ZonedDateTime}
 
 import better.files.File
-import lib.db.Dao
+import lib.TestWithDB
 import lib.server.serverapi.{RemoteFile, RemoteFileVersion}
 import monix.execution.Scheduler
 import monix.execution.Scheduler.Implicits.global
