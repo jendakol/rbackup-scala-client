@@ -16,14 +16,20 @@ import scala.io.Source
 
 class AppTest extends FunSuite with Eventually with GuiceOneServerPerSuite {
 
+  private val rbackupIp: String = {
+    val ip = Option(System.getenv("RBACKUP_IP")).getOrElse("localhost")
+
+    if (ip == "0.0.0.0") "localhost" else ip
+  }
+
   test("app starts") {
     eventually(timeout(Span(10, Seconds))) {
-      Source.fromURL(s"http://localhost:$port/").mkString // it should only not fail
+      Source.fromURL(s"http://$rbackupIp:$port/").mkString // it should only not fail
     }
   }
 
   override def fakeApplication(): Application = {
-    ConnectionPool.singleton("jdbc:h2:tcp://localhost:1521/test;MODE=MySQL", "sa", "")
+    ConnectionPool.singleton(s"jdbc:h2:tcp://$rbackupIp:1521/test;MODE=MySQL", "sa", "")
 
     DB.autoCommit { implicit session =>
       DbScheme.dropAll

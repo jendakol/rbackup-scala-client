@@ -12,7 +12,7 @@ import utils.TestOps._
 
 class IntegrationTest extends FunSuite with StrictLogging {
   private val rbackupIp: String = {
-    val ip = System.getenv("RBACKUP_IP")
+    val ip = Option(System.getenv("RBACKUP_IP")).getOrElse("localhost")
 
     if (ip == "0.0.0.0") "localhost" else ip
   }
