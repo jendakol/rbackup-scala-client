@@ -1,14 +1,9 @@
-package lib.db
+package lib
 
-import com.typesafe.scalalogging.StrictLogging
-import lib.{App, AppVersion}
 import scalikejdbc._
 
-//noinspection SqlNoDataSourceInspection
-object DbScheme extends StrictLogging {
+object DbScheme1_0_3 {
   def create(implicit session: DBSession): Unit = {
-    val currentVersionStr = App.versionStr
-
     sql"""
          |CREATE TABLE IF NOT EXISTS FILES
          |(
@@ -22,7 +17,7 @@ object DbScheme extends StrictLogging {
          |
          |create table if not exists settings
          |(
-         |    key varchar(200) primary key not null,
+         |    key varchar(200) not null,
          |    value varchar(65536) not null
          |);
          |
@@ -44,28 +39,6 @@ object DbScheme extends StrictLogging {
          |);
          |
        """.stripMargin.executeUpdate().apply()
-
-    if (App.version > AppVersion(0, 1, 3)) {
-      if (sql"""select value from settings where key='db_version'""".map(_.string("value")).single().apply().isEmpty) {
-        logger.info(s"Didn't found db_version in DB, setting to $currentVersionStr")
-
-        sql"""
-             |insert ignore into settings values ('db_version', ${currentVersionStr});
-       """.stripMargin.executeUpdate().apply()
-      }
-    }
   }
 
-  def dropAll(implicit session: DBSession): Unit = {
-    sql"""
-         |SET REFERENTIAL_INTEGRITY FALSE;
-         |
-         |drop table if exists files;
-         |drop table if exists settings;
-         |drop table if exists backup_sets;
-         |drop table if exists backup_sets_files;
-         |
-         |SET REFERENTIAL_INTEGRITY TRUE;
-       """.stripMargin.executeUpdate().apply()
-  }
 }

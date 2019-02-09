@@ -44,6 +44,8 @@ libraryDependencies ++= Seq(
   "io.sentry" % "sentry-logback" % "1.7.14",
   "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0",
   "org.scalatest" %% "scalatest" % "3.0.5",
+  "org.scalaj" %% "scalaj-http" % "2.4.1" % "test",
+  "org.scalatestplus.play" %% "scalatestplus-play" % "3.1.2" % "test",
   "org.mockito" % "mockito-core" % "2.23.0" % "test"
 )
 
@@ -94,11 +96,12 @@ lazy val setVersionInSources = taskKey[Unit]("Sets build version into sources")
 
 setVersionInSources := {
   import java.io.PrintWriter
+
   import scala.io.Source
-  
+
   val version = sys.env.getOrElse("VERSION", throw new IllegalArgumentException("Missing VERSION env property"))
   println(s"Setting app version to $version")
-  
+
   val src = Source.fromFile(ConstantsPath).mkString
   val updated = src.replaceAll(
     """final val versionStr: String = "\d+.\d+.\d+"""",
@@ -132,8 +135,8 @@ setSentryDsnInSources := {
   }
 }
 
-sources in (Compile, doc) := Seq.empty
-publishArtifact in (Compile, packageDoc) := false
+sources in(Compile, doc) := Seq.empty
+publishArtifact in(Compile, packageDoc) := false
 
 PlayKeys.playDefaultPort := 3370
 PlayKeys.devSettings := Seq("play.server.http.port" -> "3370")
