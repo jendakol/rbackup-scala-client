@@ -28,6 +28,21 @@ class AppTest extends FunSuite with Eventually with GuiceOneServerPerSuite {
     }
   }
 
+  test("returns js bundle") {
+    eventually(timeout(Span(10, Seconds))) {
+      Source.fromURL(s"http://$rbackupIp:$port/assets/bundle/js.bundle.txt").mkString // it should only not fail
+    }
+  }
+
+  test("returns status") {
+    eventually(timeout(Span(10, Seconds))) {
+      val json = sendCommand("status", Json.Null)
+
+      assertResult(Right("INSTALLED"))(json.hcursor.get[String]("status"))
+      assertResult(Right(true))(json.hcursor.get[Boolean]("success"))
+    }
+  }
+
   override def fakeApplication(): Application = {
     ConnectionPool.singleton(s"jdbc:h2:tcp://$rbackupIp:1521/test;MODE=MySQL", "sa", "")
 
