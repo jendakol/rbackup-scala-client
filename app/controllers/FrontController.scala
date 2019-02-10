@@ -1,6 +1,7 @@
 package controllers
 
 import com.google.inject.Inject
+import lib.App
 import lib.client.WebpackBuildFile
 import play.Environment
 import play.api.mvc._
@@ -14,7 +15,8 @@ class FrontController @Inject()(cc: ControllerComponents, env: Environment, @Con
         env = env,
         port = port,
         jsBundle = if (!env.isDev) WebpackBuildFile.jsBundleName else "",
-        cssBundle = if (!env.isDev) WebpackBuildFile.cssBundleName else ""
+        cssBundle = if (!env.isDev) WebpackBuildFile.cssBundleName else "",
+        App.versionStr
       )
     )
   }

@@ -1,10 +1,10 @@
-@(env: play.Environment, port: Int, jsBundle: String, cssBundle: String)
+@(env: play.Environment, port: Int, jsBundle: String, cssBundle: String, appVersion: String)
 
 <!DOCTYPE html>
 <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <title>Frontend</title>
+        <title>RBackup client @appVersion</title>
         @if(env.isProd) {
             <link rel="stylesheet" href="/assets/bundle/@cssBundle">
             }
