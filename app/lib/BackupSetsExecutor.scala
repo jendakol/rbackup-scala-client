@@ -14,6 +14,7 @@ import lib.settings.Settings
 import monix.eval.Task
 import monix.execution.{Cancelable, Scheduler}
 
+import scala.concurrent.Future
 import scala.concurrent.duration._
 
 class BackupSetsExecutor @Inject()(dao: Dao,
@@ -34,8 +35,10 @@ class BackupSetsExecutor @Inject()(dao: Dao,
       } yield {
         session match {
           case Some(sid) =>
-            if (!suspended) executeWaitingBackupSets()(sid)
-            else {
+            if (!suspended) {
+              executeWaitingBackupSets()(sid)
+              ()
+            } else {
               logger.info("Execution of backup sets is suspended")
             }
 
@@ -46,13 +49,13 @@ class BackupSetsExecutor @Inject()(dao: Dao,
     }
   }
 
-  private def executeWaitingBackupSets()(implicit session: ServerSession): Unit = {
+  private[lib] def executeWaitingBackupSets()(implicit session: ServerSession): Future[Either[AppException, List[BackupSet]]] = {
     logger.debug("Executing waiting backup sets")
 
     (for {
       sets <- dao.listBackupSetsToExecute()
       _ = logger.debug(s"Backup sets to be executed: ${sets.mkString("\n")}")
-      _ <- sets.map(execute).sequentially
+      _ <- sets.map(execute).inparallel
     } yield {
       sets
     }).runAsync {
@@ -92,10 +95,12 @@ class BackupSetsExecutor @Inject()(dao: Dao,
       .start(RunningTask.BackupSetUpload(bs.name)) {
         (for {
           _ <- dao.markAsProcessing(bs.id)
+          _ = logger.debug(s"Backup set $bs marked as processing")
           _ <- updateUi()
           files <- dao.listFilesInBackupSet(bs.id)
           _ <- files.map(filesHandler.upload(_)).inparallel
           _ <- dao.markAsExecutedNow(bs.id)
+          _ = logger.debug(s"Backup set $bs marked as executed")
           _ <- updateUi()
           _ <- wsApiController.send(
             "backupFinish",

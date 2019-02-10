@@ -332,7 +332,7 @@ class Dao(blockingScheduler: Scheduler) extends StrictLogging {
 
   def listFilesInBackupSet(id: Long): Result[List[File]] = EitherT {
     Task {
-      logger.debug(s"Listing files from backup set from DB")
+      logger.debug(s"Listing files from backup set $id from DB")
 
       val files = DB.readOnly { implicit session =>
         sql"""select * from backup_sets_files where set_id=${id}"""
@@ -343,7 +343,7 @@ class Dao(blockingScheduler: Scheduler) extends StrictLogging {
           .apply()
       }
 
-      logger.debug(s"Retrieved backup set files: $files")
+      logger.debug(s"Retrieved backup set files for BS $id: $files")
 
       Right(files): Either[AppException, List[File]]
     }.executeOnScheduler(blockingScheduler)
@@ -369,7 +369,7 @@ class Dao(blockingScheduler: Scheduler) extends StrictLogging {
 
   def markAsProcessing(backupSetId: Long, processing: Boolean = true): Result[Unit] = EitherT {
     Task {
-      logger.debug(s"Updating backed up set $backupSetId processing flag in DB tp $processing")
+      logger.debug(s"Updating backed up set $backupSetId processing flag in DB to $processing")
 
       DB.autoCommit { implicit session =>
         sql"""update backup_sets set processing = ${processing} where id = ${backupSetId} """.update().apply()
@@ -402,7 +402,7 @@ class Dao(blockingScheduler: Scheduler) extends StrictLogging {
       logger.debug(s"Listing files from backup set from DB")
 
       val sets = DB.readOnly { implicit session =>
-        sql"""select * from backup_sets where last_execution is null OR (last_execution < DATEADD('MINUTE',-1 * frequency, now())) AND processing = false"""
+        sql"""select * from backup_sets where (last_execution is null OR (last_execution < DATEADD('MINUTE',-1 * frequency, now()))) AND processing = false"""
           .map(BackupSet.apply)
           .list()
           .apply()

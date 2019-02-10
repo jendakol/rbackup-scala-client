@@ -112,6 +112,25 @@ class DaoTest extends TestWithDB {
         bs2.copy(frequency = Duration.ofMinutes(120)),
         bs4.copy(frequency = Duration.ofMinutes(400))
       ))(dao.listBackupSetsToExecute().unwrappedFutureValue.map(_.copy(lastExecution = None)))
+  }
 
+  test("markAsProcessing -> listBackupSetsToExecute") {
+    val dao = new Dao(Scheduler.io())
+
+    dao.createBackupSet("ahoj").unwrappedFutureValue
+    dao.createBackupSet("ahoj2").unwrappedFutureValue
+    dao.createBackupSet("ahoj3").unwrappedFutureValue
+    dao.createBackupSet("ahoj4").unwrappedFutureValue
+    dao.createBackupSet("ahoj5").unwrappedFutureValue
+
+    val List(bs, bs2, bs3, bs4, bs5) = dao.listAllBackupSets().unwrappedFutureValue
+
+    dao.markAsProcessing(bs.id).unwrappedFutureValue
+    dao.markAsProcessing(bs3.id).unwrappedFutureValue
+    dao.markAsProcessing(bs5.id).unwrappedFutureValue
+
+    assertResult(List(bs2, bs4).map(_.id)) {
+      dao.listBackupSetsToExecute().unwrappedFutureValue.map(_.id)
+    }
   }
 }

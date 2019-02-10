@@ -27,7 +27,7 @@ function client_test() {
      export RBACKUP_IP=$(docker inspect citests_tests_1 | jq -r '.[0] | .NetworkSettings.Ports."3369/tcp" | .[0].HostIp') && \
      wait_for_server && \
      cd .. && \
-     mkdir public && mkdir public/bundle && touch public/bundle/js.bundle.txt && touch public/bundle/style.bundle.txt && \
+     mkdir -p public/bundle && touch public/bundle/js.bundle.txt && touch public/bundle/style.bundle.txt && \
      sbt ";clean;test" && \
      cd ci-tests  && \
      docker-compose down
