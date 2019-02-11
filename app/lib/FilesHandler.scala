@@ -14,7 +14,7 @@ import io.circe.syntax._
 import javax.inject.{Inject, Named}
 import lib.App._
 import lib.AppException.InvalidArgument
-import lib.db.{Dao, DbFile}
+import lib.db.{DbFile, FilesDao}
 import lib.server.serverapi._
 import lib.server.{CloudConnector, CloudFilesRegistry}
 import lib.settings.Settings
@@ -27,7 +27,7 @@ import utils.ConfigProperty
 class FilesHandler @Inject()(cloudConnector: CloudConnector,
                              filesRegistry: CloudFilesRegistry,
                              wsApiController: WsApiController,
-                             dao: Dao,
+                             dao: FilesDao,
                              settings: Settings,
                              @Named("blocking") blockingScheduler: Scheduler,
                              @ConfigProperty("fileHandler.parallelism") maxParallelism: Int,
@@ -270,7 +270,7 @@ class FilesHandler @Inject()(cloudConnector: CloudConnector,
   }
 
   private def checkFileUpdated(file: File): Result[Boolean] = {
-    dao.getFile(file).flatMap {
+    dao.get(file).flatMap {
       case Some(dbFile) =>
         EitherT.right {
           sameFile(file, dbFile).map {

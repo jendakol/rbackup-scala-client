@@ -12,11 +12,11 @@ import scalikejdbc._
 
 import scala.collection.immutable.TreeMap
 
-class DbUpgrader(dao: Dao)(implicit sch: Scheduler) extends StrictLogging {
+class DbUpgrader(dao: SettingsDao)(implicit sch: Scheduler) extends StrictLogging {
 
   def upgrade(implicit session: DBSession): Result[Unit] = {
     dao
-      .getSetting("db_version")
+      .get("db_version")
       .map(_.flatMap(AppVersion(_).toOption).getOrElse {
         logger.debug("Didn't found DB version, fallback to 0.1.3")
         AppVersion(0, 1, 3) // last version without this
@@ -45,7 +45,7 @@ class DbUpgrader(dao: Dao)(implicit sch: Scheduler) extends StrictLogging {
                   }
               }.flatMap { _ =>
                 dao
-                  .setSetting("db_version", versionStr)
+                  .set("db_version", versionStr)
                   .map(_ => logger.info(s"DB upgraded to version $versionStr"))
               }
           }

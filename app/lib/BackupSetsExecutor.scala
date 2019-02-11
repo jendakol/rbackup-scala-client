@@ -9,7 +9,7 @@ import io.sentry.Sentry
 import javax.inject.{Inject, Named}
 import lib.App.{parseUnsafe, _}
 import lib.AppException.MultipleFailuresException
-import lib.db.{BackupSet, Dao}
+import lib.db.{BackupSet, BackupSetsDao}
 import lib.settings.Settings
 import monix.eval.Task
 import monix.execution.{Cancelable, Scheduler}
@@ -17,7 +17,7 @@ import monix.execution.{Cancelable, Scheduler}
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-class BackupSetsExecutor @Inject()(dao: Dao,
+class BackupSetsExecutor @Inject()(dao: BackupSetsDao,
                                    filesHandler: FilesHandler,
                                    tasksManager: TasksManager,
                                    wsApiController: WsApiController,
@@ -53,7 +53,7 @@ class BackupSetsExecutor @Inject()(dao: Dao,
     logger.debug("Executing waiting backup sets")
 
     (for {
-      sets <- dao.listBackupSetsToExecute()
+      sets <- dao.listToExecute()
       _ = logger.debug(s"Backup sets to be executed: ${sets.mkString("\n")}")
       _ <- sets.map(execute).inparallel
     } yield {
@@ -73,7 +73,7 @@ class BackupSetsExecutor @Inject()(dao: Dao,
   }
 
   def execute(bs: BackupSet)(implicit session: ServerSession): Result[Unit] = {
-    def updateUi(): Result[Unit] = dao.getBackupSet(bs.id).flatMap {
+    def updateUi(): Result[Unit] = dao.get(bs.id).flatMap {
       case Some(currentBs) =>
         val lastTime = currentBs.lastExecution.map(DateTimeFormatter.format).getOrElse("never")
         val nextTime = currentBs.lastExecution.map(_.plus(currentBs.frequency)).map(DateTimeFormatter.format).getOrElse("soon")
@@ -97,7 +97,7 @@ class BackupSetsExecutor @Inject()(dao: Dao,
           _ <- dao.markAsProcessing(bs.id)
           _ = logger.debug(s"Backup set $bs marked as processing")
           _ <- updateUi()
-          files <- dao.listFilesInBackupSet(bs.id)
+          files <- dao.listFiles(bs.id)
           _ <- files.map(filesHandler.upload(_)).inparallel
           _ <- dao.markAsExecutedNow(bs.id)
           _ = logger.debug(s"Backup set $bs marked as executed")

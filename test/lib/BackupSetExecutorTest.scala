@@ -5,7 +5,7 @@ import cats.data.EitherT
 import com.typesafe.scalalogging.StrictLogging
 import controllers.WsApiController
 import lib.App._
-import lib.db.Dao
+import lib.db.{BackupSetsDao, SettingsDao}
 import lib.server.serverapi.{RemoteFile, UploadResponse}
 import lib.settings.Settings
 import monix.eval.Task
@@ -29,7 +29,7 @@ class BackupSetExecutorTest extends TestWithDB with MockitoSugar with ScalaFutur
 
   private implicit val ss: ServerSession = ServerSession(Uri.unsafeFromString("http://localhost"), "sesssionId", AppVersion(0, 1, 0))
   private val blockingScheduler = Scheduler.io()
-  private val dao = new Dao(blockingScheduler)
+  private val dao = new BackupSetsDao(blockingScheduler)
 
   test("doesn't execute backup set twice in parallel") {
     val filesHandler: FilesHandler = mock[FilesHandler]
@@ -47,15 +47,20 @@ class BackupSetExecutorTest extends TestWithDB with MockitoSugar with ScalaFutur
     val wsApiController: WsApiController = mock[WsApiController]
     when(wsApiController.send(ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any())).thenReturn(pureResult(()))
 
-    val bse = new BackupSetsExecutor(dao, filesHandler, tasksManager, wsApiController, blockingScheduler, new Settings(dao))
+    val bse = new BackupSetsExecutor(dao,
+                                     filesHandler,
+                                     tasksManager,
+                                     wsApiController,
+                                     blockingScheduler,
+                                     new Settings(new SettingsDao(blockingScheduler)))
 
     assertResult(Right(List.empty))(bse.executeWaitingBackupSets().futureValue)
 
-    val bs1 = dao.createBackupSet("ahoj").unwrappedFutureValue
-    val bs2 = dao.createBackupSet("ahoj2").unwrappedFutureValue
+    val bs1 = dao.create("ahoj").unwrappedFutureValue
+    val bs2 = dao.create("ahoj2").unwrappedFutureValue
 
-    dao.updateFilesInBackupSet(bs1.id, Seq(File("/tmp/1"), File("/tmp/2"))).unwrappedFutureValue
-    dao.updateFilesInBackupSet(bs2.id, Seq(File("/tmp/3"), File("/tmp/4"))).unwrappedFutureValue
+    dao.updateFiles(bs1.id, Seq(File("/tmp/1"), File("/tmp/2"))).unwrappedFutureValue
+    dao.updateFiles(bs2.id, Seq(File("/tmp/3"), File("/tmp/4"))).unwrappedFutureValue
 
     dao.markAsProcessing(bs1.id, processing = false).unwrappedFutureValue
     dao.markAsProcessing(bs2.id, processing = false).unwrappedFutureValue

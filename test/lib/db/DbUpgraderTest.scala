@@ -14,7 +14,7 @@ class DbUpgraderTest extends TestWithDB {
       DbScheme.dropAll
       DbScheme1_0_3.create // create legacy scheme for version 1.0.3
 
-      val upgrader = new DbUpgrader(new Dao(Scheduler.global))
+      val upgrader = new DbUpgrader(new SettingsDao(Scheduler.global))
 
       upgrader.upgrade.unwrapResult
         .runSyncUnsafe(10.seconds)

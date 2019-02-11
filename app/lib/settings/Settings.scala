@@ -8,14 +8,14 @@ import com.typesafe.scalalogging.StrictLogging
 import io.circe.generic.extras.auto._
 import lib.App._
 import lib.ServerSession
-import lib.db.Dao
+import lib.db.SettingsDao
 import lib.settings.Settings._
 import org.apache.commons.lang3.StringUtils
 import utils.CirceImplicits._
 
 import scala.util.control.NonFatal
 
-class Settings(dao: Dao) extends StrictLogging {
+class Settings(dao: SettingsDao) extends StrictLogging {
   private val _initializing = new AtomicReference(true)
 
   def initializing: Boolean = _initializing.get
@@ -101,15 +101,15 @@ class Settings(dao: Dao) extends StrictLogging {
   }
 
   private def get(key: String): Result[Option[String]] = {
-    dao.getSetting(key)
+    dao.get(key)
   }
 
   private def set(key: String, value: String): Result[Unit] = {
-    dao.setSetting(key, value)
+    dao.set(key, value)
   }
 
   private def delete(key: String): Result[Unit] = {
-    dao.deleteSetting(key)
+    dao.delete(key)
   }
 
   private class CachedSetting[A: SettingsConverter](val key: String) {

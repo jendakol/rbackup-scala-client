@@ -5,12 +5,12 @@ import cats.instances.list._
 import com.typesafe.scalalogging.StrictLogging
 import lib.App._
 import lib.client.clientapi.ClientStatus
-import lib.db.Dao
+import lib.db.FilesDao
 import lib.server.CloudConnector
 import lib.server.serverapi.ListFilesResponse
 import lib.settings.Settings
 
-class StateManager(deviceId: DeviceId, cloudConnector: CloudConnector, dao: Dao, settings: Settings) extends StrictLogging {
+class StateManager(deviceId: DeviceId, cloudConnector: CloudConnector, dao: FilesDao, settings: Settings) extends StrictLogging {
   def appInit(): Result[Unit] = {
     settings.session.flatMap {
       case Some(sessionId) => downloadRemoteFilesList(sessionId)
@@ -67,7 +67,7 @@ class StateManager(deviceId: DeviceId, cloudConnector: CloudConnector, dao: Dao,
           logger.error("Server does not know this device even though the request was authenticated")
           Left(AppException.Unauthorized)
       }
-      _ <- dao.deleteAllFiles()
+      _ <- dao.deleteAll()
       _ <- Traverse[List].sequence(allFiles.map(dao.saveRemoteFile).toList)
     } yield {
       logger.info(s"Downloaded ${allFiles.length} remote files")

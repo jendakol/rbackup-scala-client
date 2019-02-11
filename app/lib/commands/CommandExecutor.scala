@@ -18,7 +18,6 @@ import lib.App._
 import lib.AppException.LoginRequired
 import lib._
 import lib.client.clientapi.FileTreeNode
-import lib.db.Dao
 import lib.server.CloudConnector
 import lib.server.serverapi._
 import lib.settings.Settings
@@ -31,7 +30,6 @@ import utils.CirceImplicits._
 class CommandExecutor @Inject()(cloudConnector: CloudConnector,
                                 tasksManager: TasksManager,
                                 wsApiController: WsApiController,
-                                dao: Dao,
                                 backupCommandExecutor: BackupCommandExecutor,
                                 fileCommandExecutor: FileCommandExecutor,
                                 settings: Settings,

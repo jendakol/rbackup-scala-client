@@ -9,7 +9,7 @@ import io.sentry.Sentry
 import lib.App._
 import lib.AppException.MultipleFailuresException
 import lib._
-import lib.db.{Dao, DbScheme, DbUpgrader}
+import lib.db._
 import lib.server.CloudConnector
 import lib.settings.Settings
 import monix.eval.Task
@@ -26,8 +26,8 @@ import updater.{GithubConnector, LinuxServiceUpdaterExecutor, ServiceUpdaterExec
 import utils.AllowedWsApiOrigins
 
 import scala.collection.JavaConverters._
-import scala.concurrent.{ExecutionContext, TimeoutException}
 import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, TimeoutException}
 import scala.util.control.NonFatal
 
 class AppModule(environment: Environment, configuration: Configuration)
@@ -74,12 +74,17 @@ class AppModule(environment: Environment, configuration: Configuration)
 
     val blockingScheduler = Scheduler.io()
 
-    val dao = new Dao(blockingScheduler)
+    val filesDao = new FilesDao(blockingScheduler)
+    val backupSetsDao = new BackupSetsDao(blockingScheduler)
+    val settingsDao = new SettingsDao(blockingScheduler)
+
+    bind[FilesDao].toInstance(filesDao)
+    bind[BackupSetsDao].toInstance(backupSetsDao)
 
     // TODO when this fails, does it break the app in prod?
     // upgrade DB
     DB.autoCommit { implicit session =>
-      val upgrader = new DbUpgrader(dao)
+      val upgrader = new DbUpgrader(settingsDao)
       upgrader.upgrade.value.runSyncUnsafe(30.seconds) match {
         case Right(_) => // ok
         case Left(err @ MultipleFailuresException(causes)) =>
@@ -96,11 +101,10 @@ class AppModule(environment: Environment, configuration: Configuration)
     bind[DeviceId].toInstance(deviceId)
 
     val cloudConnector = CloudConnector.fromConfig(config.getConfig("cloudConnector"), blockingScheduler)
-    val settings = new Settings(dao)
-    val stateManager = new StateManager(deviceId, cloudConnector, dao, settings)
+    val settings = new Settings(settingsDao)
+    val stateManager = new StateManager(deviceId, cloudConnector, filesDao, settings)
 
     bind[CloudConnector].toInstance(cloudConnector)
-    bind[Dao].toInstance(dao)
     bind[Settings].toInstance(settings)
     bind[StateManager].toInstance(stateManager)
 
@@ -123,12 +127,12 @@ class AppModule(environment: Environment, configuration: Configuration)
     bindServiceUpdater()
     bind[App].asEagerSingleton()
 
-    dao.resetProcessingFlags().value.runSyncUnsafe(Duration.Inf)
+    backupSetsDao.resetProcessingFlags().value.runSyncUnsafe(Duration.Inf)
 
     // create backup set if there is none
     (for {
-      bss <- dao.listAllBackupSets()
-      _ <- if (bss.isEmpty) dao.createBackupSet("Default") else pureResult(())
+      bss <- backupSetsDao.listAll()
+      _ <- if (bss.isEmpty) backupSetsDao.create("Default") else pureResult(())
     } yield {
       ()
     }).value.toIO.unsafeRunSync()

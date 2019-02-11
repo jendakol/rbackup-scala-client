@@ -9,13 +9,13 @@ import javax.inject.Inject
 import lib.App
 import lib.App._
 import lib.client.clientapi.{FileTree, Version}
-import lib.db.Dao
+import lib.db.FilesDao
 import lib.server.serverapi.{RemoteFile, RemoteFileVersion}
 
-class CloudFilesRegistry @Inject()(wsApiController: WsApiController, dao: Dao) {
+class CloudFilesRegistry @Inject()(wsApiController: WsApiController, dao: FilesDao) {
 
   def updateFile(file: File, remoteFile: RemoteFile): Result[Unit] = {
-    dao.updateFile(file, remoteFile)
+    dao.update(file, remoteFile)
   }
 
   def reportBackedUpFilesList: Result[Unit] = {
@@ -24,7 +24,7 @@ class CloudFilesRegistry @Inject()(wsApiController: WsApiController, dao: Dao) {
     }
 
     for {
-      files <- dao.listAllFiles
+      files <- dao.listAll
       fileTrees = FileTree.fromRemoteFiles(files.map(_.remoteFile))
       json = fileTrees.toJson
       _ <- sendWsUpdate(json)
@@ -34,17 +34,17 @@ class CloudFilesRegistry @Inject()(wsApiController: WsApiController, dao: Dao) {
   }
 
   def versions(file: File): Result[Option[Vector[RemoteFileVersion]]] = {
-    dao.getFile(file).map(_.map(_.remoteFile.versions))
+    dao.get(file).map(_.map(_.remoteFile.versions))
   }
 
   def get(file: File): Result[Option[RemoteFile]] = {
-    dao.getFile(file).map(_.map(_.remoteFile))
+    dao.get(file).map(_.map(_.remoteFile))
   }
 
   def removeFile(file: RemoteFile): Result[Unit] = {
     App.leaveBreadcrumb("Removing file", Map("path" -> file.originalName))
 
-    dao.deleteFile(file) >>
+    dao.delete(file) >>
       reportBackedUpFilesList
   }
 

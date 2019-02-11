@@ -13,14 +13,15 @@ import javax.inject.{Inject, Singleton}
 import lib.App._
 import lib.AppException.{InvalidArgument, LoginRequired}
 import lib.client.clientapi.FileTree
-import lib.db.{BackupSet, Dao}
+import lib.db.{BackupSet, BackupSetsDao, FilesDao}
 import lib.settings.Settings
 import lib.{App, AppException, ServerSession, _}
 import monix.eval.Task
 import utils.CirceImplicits._
 
 @Singleton
-class BackupCommandExecutor @Inject()(dao: Dao,
+class BackupCommandExecutor @Inject()(bsDao: BackupSetsDao,
+                                      filesDao: FilesDao,
                                       backupSetsExecutor: BackupSetsExecutor,
                                       wsApiController: WsApiController,
                                       settings: Settings)
@@ -34,7 +35,7 @@ class BackupCommandExecutor @Inject()(dao: Dao,
     case BackupSetsListCommand =>
       App.leaveBreadcrumb("Listing backup sets")
 
-      dao.listAllBackupSets().map { bss =>
+      bsDao.listAll().map { bss =>
         val sets = bss.map(toJson)
 
         parseUnsafe(s"""{"success": true, "data": [${sets.mkString(",")}]}""")
@@ -43,7 +44,7 @@ class BackupCommandExecutor @Inject()(dao: Dao,
     case BackupSetDetailsCommand(id) =>
       App.leaveBreadcrumb("Requesting backup set detail", Map("id" -> id))
 
-      dao.listFilesInBackupSet(id).map { files =>
+      bsDao.listFiles(id).map { files =>
         parseUnsafe(s"""{"success": true, "data": {"files": ${files.map(_.pathAsString).asJson}}}""")
       }
 
@@ -52,7 +53,7 @@ class BackupCommandExecutor @Inject()(dao: Dao,
 
       withSession { implicit session =>
         for {
-          bs <- dao.getBackupSet(id)
+          bs <- bsDao.get(id)
           _ <- backupSetsExecutor.execute(bs.getOrElse(throw new IllegalArgumentException("Backup set not found"))) // TODO
         } yield {
           JsonSuccess
@@ -64,7 +65,7 @@ class BackupCommandExecutor @Inject()(dao: Dao,
 
       for {
         _ <- updateBackupSetFilesList(id, files)
-        currentFiles <- dao.listFilesInBackupSet(id)
+        currentFiles <- bsDao.listFiles(id)
         _ <- wsApiController.send(
           "backupSetDetailsUpdate",
           parseUnsafe(s"""{ "id": $id, "type": "files", "files":${currentFiles.map(_.pathAsString).asJson}}"""),
@@ -75,12 +76,12 @@ class BackupCommandExecutor @Inject()(dao: Dao,
     case BackupSetFrequencyUpdateCommand(id, freqMinutes) =>
       App.leaveBreadcrumb("Updating backup set frequency", Map("id" -> id, "minutes" -> freqMinutes))
 
-      dao.getBackupSet(id).flatMap {
+      bsDao.get(id).flatMap {
         case Some(bs) =>
           val updated = bs.copy(frequency = Duration.ofMinutes(freqMinutes))
 
-          dao
-            .updateBackupSet(updated)
+          bsDao
+            .update(updated)
             .map { _ =>
               val nextTime = updated.lastExecution.map(_.plus(updated.frequency)).map(DateTimeFormatter.format).getOrElse("soon")
               parseUnsafe(s"""{ "success": true, "data": {"next_execution": "$nextTime"} }""")
@@ -92,11 +93,11 @@ class BackupCommandExecutor @Inject()(dao: Dao,
 
     case BackupSetNewCommand(name) =>
       App.leaveBreadcrumb("Creating backup set", Map("name" -> name))
-      dao.createBackupSet(name).mapToJsonSuccess
+      bsDao.create(name).mapToJsonSuccess
 
     case BackupSetDeleteCommand(id) =>
       App.leaveBreadcrumb("Deleting backup set", Map("id" -> id))
-      dao.deleteBackupSet(id).mapToJsonSuccess
+      bsDao.delete(id).mapToJsonSuccess
   }
 
   private def toJson(bs: BackupSet): Json = {
@@ -109,7 +110,7 @@ class BackupCommandExecutor @Inject()(dao: Dao,
   }
 
   private def backedUpList: EitherT[Task, AppException, Json] = {
-    dao.listAllFiles.map { files =>
+    filesDao.listAll.map { files =>
       val fileTrees = FileTree.fromRemoteFiles(files.map(_.remoteFile))
 
       logger.debug(s"Backed-up file trees: $fileTrees")
@@ -143,7 +144,7 @@ class BackupCommandExecutor @Inject()(dao: Dao,
     val normalized = normalizePaths(paths)
 
     logger.debug(s"Updating files in backup set $bsId: ${normalized.mkString("[", ", ", "]")}")
-    dao.updateFilesInBackupSet(bsId, normalized.map(File(_)))
+    bsDao.updateFiles(bsId, normalized.map(File(_)))
   }
 
   private def normalizePaths(paths: Seq[String]): Seq[String] = {
