@@ -22,7 +22,6 @@ object clientapi extends StrictLogging {
 
   sealed trait ClientStatus {
     def name: String
-
     def data: Json
   }
 

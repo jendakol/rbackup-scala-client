@@ -1,6 +1,6 @@
 package lib.db
 
-import java.time.ZonedDateTime
+import java.time.{ZoneId, ZonedDateTime}
 
 import better.files.File
 import cats.data
@@ -185,7 +185,7 @@ object DbFile {
 
     DbFile(
       path = string("path"),
-      lastModified = zonedDateTime("last_modified"),
+      lastModified = zonedDateTime("last_modified").withZoneSameInstant(ZoneId.of("UTC+0")),
       size = long("size"),
       remoteFile = decode[RemoteFile](string("remote_file")) match {
         case Right(v) => v
