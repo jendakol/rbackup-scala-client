@@ -66,7 +66,7 @@
                 fileTreeData: [],
                 loaded: false,
                 loadData: (oriNode, resolve) => {
-                    this.ajax("backedUpFileList", {})
+                    this.ajax("backedUpFileList", {prefix: null})
                         .then(response => {
                             resolve(response)
                         })

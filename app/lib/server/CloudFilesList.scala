@@ -4,7 +4,7 @@ import better.files.File
 import lib.server.serverapi.{RemoteFile, RemoteFileVersion}
 
 case class CloudFilesList private (files: Map[String, RemoteFile]) {
-  def versions(file: File): Option[Vector[RemoteFileVersion]] = {
+  def versions(file: File): Option[List[RemoteFileVersion]] = {
     files.get(file.path.toAbsolutePath.toString).map(_.versions)
   }
 

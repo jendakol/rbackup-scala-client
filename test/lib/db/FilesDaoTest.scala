@@ -25,7 +25,7 @@ class FilesDaoTest extends TestWithDB {
       42,
       "theDevice",
       "c:\\theFile\\path",
-      Vector(
+      List(
         RemoteFileVersion(123, 456, randomHash, time.plusMinutes(12), time.plusMinutes(122)),
         RemoteFileVersion(345, 456, randomHash, time, time.plusMinutes(1)),
         RemoteFileVersion(234, 456, randomHash, time.plusMinutes(23), time.plusMinutes(233)),
@@ -46,7 +46,7 @@ class FilesDaoTest extends TestWithDB {
       42,
       "testDevice",
       file.pathAsString,
-      Vector(remoteFileVersion)
+      List(remoteFileVersion)
     )
 
     dao.create(file, remoteFile).unwrappedFutureValue
@@ -71,7 +71,7 @@ class FilesDaoTest extends TestWithDB {
         filesC.incrementAndGet(),
         "testDevice",
         path,
-        Vector(remoteFileVersion)
+        List(remoteFileVersion)
       )
 
       dao.saveRemoteFile(remoteFile).unwrappedFutureValue

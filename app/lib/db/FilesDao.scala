@@ -45,7 +45,7 @@ class FilesDao(blockingScheduler: Scheduler) extends StrictLogging {
     Task {
       App.leaveBreadcrumb("Listing files", Map("prefix" -> prefix))
 
-      logger.debug(s"Trying to list all files from DB (prefix $prefix)")
+      logger.debug(s"Trying to list all files from DB (prefix '$prefix')")
 
       Right {
         DB.readOnly { implicit session =>

@@ -78,7 +78,7 @@ class IntegrationTest extends FunSuite with StrictLogging {
     assertResult(theFile.pathAsString)(remoteFile1.originalName)
     assertResult("rbackup-test")(remoteFile1.deviceId)
 
-    val Vector(version1) = remoteFile1.versions
+    val List(version1) = remoteFile1.versions.toList
 
     assertResult(1520)(version1.size)
     assertResult(Sha256(theFile.sha256))(version1.hash)
