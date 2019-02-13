@@ -107,7 +107,7 @@ class FileCommandExecutor @Inject()(wsApiController: WsApiController,
       .start(runningTask) {
         for {
           results <- filesHandler.upload(file)
-          _ <- filesRegistry.reportBackedUpFilesList
+//          _ <- filesRegistry.reportBackedUpFilesList // TODO report uploaded file - is it really needed?
           _ <- reportResult(results)
         } yield ()
       }

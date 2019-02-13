@@ -111,9 +111,9 @@ class BackupCommandExecutor @Inject()(bsDao: BackupSetsDao,
   }
 
   private def backedUpList(prefix: Option[String]): EitherT[Task, AppException, Json] = {
-    App.leaveBreadcrumb("Getting backed-up list", Map("prefix" -> prefix.getOrElse("")))
+    filesRegistry.listFiles(prefix).map { nodes =>
+      App.leaveBreadcrumb("Getting backed-up list", Map("prefix" -> prefix.getOrElse("")))
 
-    filesRegistry.list(prefix).map { nodes =>
       if (nodes.nonEmpty) {
         nodes.map(_.toJson).asJson
       } else {

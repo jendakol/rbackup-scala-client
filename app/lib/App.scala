@@ -191,7 +191,9 @@ object App extends Constants {
   }
 
   implicit class StringOps(val s: String) extends AnyVal {
-    def fixPath: String = s.replace('\\', '/').replace('\\', '/')
+    def fixPath: String = s.replace('\\', '/')
+
+    def unfixPath: String = s.replace('/', java.io.File.separatorChar)
   }
 
   def leaveBreadcrumb(message: String, data: Map[String, Any] = Map.empty): Unit = {

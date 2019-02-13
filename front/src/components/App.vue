@@ -14,6 +14,10 @@
                 <MainApp v-on:logout="updateStatus" :hostUrl="this.hostUrl" :ajax="this.ajax"
                          :asyncActionWithNotification="this.asyncActionWithNotification"/>
             </div>
+            <div v-if="clientStatus === null">
+                Connecting...
+                <!-- TODO improve layout-->
+            </div>
         </div>
 
         <vue-snotify/>
@@ -50,7 +54,8 @@
                         return t.data;
                     }).catch(err => {
                         console.log(err);
-                        this.clientStatus = "DISCONNECTED"
+                        this.clientStatus = "DISCONNECTED";
+                        setTimeout(() => this.updateStatus(), 1000)
                     })
             }, asyncActionWithNotification(actionName, data, initialText, responseToPromise) {
                 this.$snotify.async(initialText, () => new Promise((resolve, reject) => {

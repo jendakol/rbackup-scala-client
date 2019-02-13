@@ -70,7 +70,7 @@ object clientapi extends StrictLogging {
 
     def name: String
 
-    def toJson: Json
+    def toJson: Json // TODO replace with implicit encoder
   }
 
   object FileTreeNode {
@@ -86,16 +86,6 @@ object clientapi extends StrictLogging {
     }
 
     object Directory {
-      def apply(absolutePath: String, prefix: Option[String]): Directory = {
-        val n = prefix.map(absolutePath.stripPrefix).getOrElse(absolutePath).fixPath.split("/").headOption
-
-        new Directory(
-          absolutePath,
-          n.map(p => if (p != "") p else "/").getOrElse("/"),
-          None
-        )
-      }
-
       def apply(file: File): Directory = {
         val absolutePath = file.path.toAbsolutePath.toString
         val n = absolutePath.fixPath.split("/").lastOption
