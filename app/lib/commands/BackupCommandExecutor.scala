@@ -130,6 +130,15 @@ class BackupCommandExecutor @Inject()(bsDao: BackupSetsDao,
     }
   }
 
+  // TODO: corner case - what to do with files from other platforms??
+  //  private def isOtherPlatformFile(f: FileTreeNode): Boolean = {
+  //    if (SystemUtils.IS_OS_WINDOWS) {
+  //      f.path.headOption.contains('/')
+  //    } else if (SystemUtils.IS_OS_UNIX) {
+  //      f.path.headOption.exists(_ != '/')
+  //    } else sys.error("Unsupported platform")
+  //  }
+
   private def updateBackupSetFilesList(bsId: Long, paths: Seq[String]): Result[Unit] = {
     val normalized = normalizePaths(paths)
 
