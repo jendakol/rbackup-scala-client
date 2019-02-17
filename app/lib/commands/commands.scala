@@ -22,6 +22,7 @@ object Command {
     case "upload" => data.flatMap(_.as[UploadCommand].toOption)
     case "removeRemoteFile" => data.flatMap(_.as[RemoveRemoteFile].toOption)
     case "removeRemoteFileVersion" => data.flatMap(_.as[RemoveRemoteFileVersion].toOption)
+    case "removeAllInDir" => data.flatMap(_.as[RemoveAllFilesInDir].toOption)
 
     case "download" => data.flatMap(_.as[DownloadCommand].toOption)
     case "ping" => Some(PingCommand)
@@ -69,6 +70,8 @@ case class RemoveRemoteFile(path: String) extends FileCommand
 
 case class RemoveRemoteFileVersion(path: String, versionId: Long) extends FileCommand
 
+case class RemoveAllFilesInDir(path: String) extends FileCommand
+
 /* -- */
 
 case object PingCommand extends Command
@@ -79,7 +82,7 @@ case class DirListCommand(path: String) extends Command
 
 case class RegisterCommand(host: String, username: String, password: String) extends Command
 
-case class LoginCommand(host: String, username: String, password: String) extends Command
+case class LoginCommand(host: String, username: String, password: String, deviceId: String) extends Command
 
 case object LogoutCommand extends Command
 

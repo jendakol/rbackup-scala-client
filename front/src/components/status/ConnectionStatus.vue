@@ -1,8 +1,13 @@
 <template>
-    <v-container fluid>
+    <v-container fluid v-if="initialized === true">
         <v-icon>fa fa-plug</v-icon>
-        <span style="color: green;">Connected</span> to RBackup server (v{{ this.serverVersion }}) @ {{ this.connectedHost }}
+        <span style="color: green;">Connected</span> to RBackup server (v{{ this.serverVersion }}) @ {{ this.connectedHost }} (as
+        <i>{{this.deviceId}}</i>)
     </v-container>
+    <v-container fluid v-else>
+        Checking the connection...
+    </v-container>
+
 </template>
 
 <script>
@@ -15,28 +20,23 @@
         },
         data() {
             return {
+                initialized: false,
                 connectedHost: "",
-                serverVersion: ""
+                serverVersion: "",
+                deviceId: "",
             }
         },
         created() {
-            this.registerWsListener(this.receiveWs);
             this.updateStatus();
         },
         methods: {
-            receiveWs(message) {
-                // switch (message.type) {
-                //     case "fileUploadUpdate": {
-                //         alert(message.data);
-                //     }
-                //         break;
-                // }
-            },
             updateStatus() {
                 this.ajax("status").then(resp => {
                     if (resp.success && resp.status === "READY") {
                         this.connectedHost = resp.data.host;
                         this.serverVersion = resp.data.serverVersion;
+                        this.deviceId = resp.data.deviceId;
+                        this.initialized = true;
                     }
                 })
             }

@@ -12,7 +12,7 @@ import io.circe.{Decoder, Json}
 import lib.App.{StringOps, _}
 import lib.server.serverapi
 import lib.server.serverapi.RemoteFileVersion
-import lib.{App, AppVersion}
+import lib.{App, AppVersion, DeviceId}
 import org.http4s.Uri
 
 object clientapi extends StrictLogging {
@@ -30,9 +30,9 @@ object clientapi extends StrictLogging {
       val data: Json = Json.Null
     }
 
-    case class Ready(rootUri: Uri, serverVersion: AppVersion) extends ClientStatus {
+    case class Ready(rootUri: Uri, serverVersion: AppVersion, deviceId: DeviceId) extends ClientStatus {
       val name: String = "READY"
-      val data: Json = parseUnsafe(s"""{ "host": "$rootUri", "serverVersion":"$serverVersion"}""")
+      val data: Json = parseUnsafe(s"""{ "host": "$rootUri", "serverVersion":"$serverVersion", "deviceId": "${deviceId.value}"}""")
     }
 
     case object Disconnected extends ClientStatus {

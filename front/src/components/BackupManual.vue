@@ -64,6 +64,7 @@
             uploadManually() {
                 let path = this.rightClicked.value;
 
+                this.$snotify.success("File is being uploaded", {timeout: 1000});
                 this.ajax("upload", {path: path});
             },
         }

@@ -3,6 +3,7 @@ package lib
 import cats.Traverse
 import cats.instances.list._
 import com.typesafe.scalalogging.StrictLogging
+import io.sentry.Sentry
 import lib.App._
 import lib.client.clientapi.ClientStatus
 import lib.db.FilesDao
@@ -10,7 +11,7 @@ import lib.server.CloudConnector
 import lib.server.serverapi.ListFilesResponse
 import lib.settings.Settings
 
-class StateManager(deviceId: DeviceId, cloudConnector: CloudConnector, dao: FilesDao, settings: Settings) extends StrictLogging {
+class StateManager(cloudConnector: CloudConnector, dao: FilesDao, settings: Settings) extends StrictLogging {
   def appInit(): Result[Unit] = {
     settings.session.flatMap {
       case Some(sessionId) => downloadRemoteFilesList(sessionId)
@@ -23,6 +24,8 @@ class StateManager(deviceId: DeviceId, cloudConnector: CloudConnector, dao: File
       _ <- settings.session(Option(session))
       _ <- downloadRemoteFilesList
     } yield {
+      val sc = Sentry.getStoredClient
+      sc.addExtra("deviceId", session.deviceId.value)
       ()
     }
   }
@@ -39,7 +42,7 @@ class StateManager(deviceId: DeviceId, cloudConnector: CloudConnector, dao: File
               .status(ss)
               .map[ClientStatus] { _ =>
                 logger.debug("Status READY")
-                ClientStatus.Ready(ss.rootUri, ss.serverVersion)
+                ClientStatus.Ready(ss.rootUri, ss.serverVersion, ss.deviceId)
               }
               .recover {
                 case e =>
@@ -59,7 +62,7 @@ class StateManager(deviceId: DeviceId, cloudConnector: CloudConnector, dao: File
     logger.info("Downloading remote files list")
 
     for {
-      allFiles <- cloudConnector.listFiles(Some(deviceId)).subflatMap {
+      allFiles <- cloudConnector.listFiles(Some(session.deviceId)).subflatMap {
         case ListFilesResponse.FilesList(files) =>
           logger.debug(s"Downloaded files list with ${files.length} items")
           Right(files)

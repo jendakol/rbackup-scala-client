@@ -33,8 +33,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
                                 backupCommandExecutor: BackupCommandExecutor,
                                 fileCommandExecutor: FileCommandExecutor,
                                 settings: Settings,
-                                stateManager: StateManager,
-                                deviceId: DeviceId)(implicit scheduler: Scheduler)
+                                stateManager: StateManager)(implicit scheduler: Scheduler)
     extends StrictLogging {
 
   wsApiController.setEventCallback(processEvent)
@@ -50,7 +49,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
 
         import scala.concurrent.duration._
 
-        tasksManager.start(RunningTask.FileUpload(deviceId.value))(EitherT.right(Task.unit.delayResult(10.seconds))) >>
+        tasksManager.start(RunningTask.FileUpload(session.deviceId.value))(EitherT.right(Task.unit.delayResult(10.seconds))) >>
           cloudConnector.status
             .flatMap { str =>
               parse(s"""{"serverResponse": "$str"}""").toResult
@@ -72,10 +71,10 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
         resp <- cloudConnector.registerAccount(uri, username, password).map(RegisterCommand.toResponse)
       } yield resp
 
-    case LoginCommand(host, username, password) =>
+    case LoginCommand(host, username, password, deviceId) =>
       App.leaveBreadcrumb("Logging in")
       // TODO check the URL
-      login(host, username, password)
+      login(host, username, password, DeviceId(deviceId))
 
     case LogoutCommand =>
       App.leaveBreadcrumb("Logging out")
@@ -138,7 +137,7 @@ class CommandExecutor @Inject()(cloudConnector: CloudConnector,
     }
   }
 
-  private def login(host: String, username: String, password: String): Result[Json] = {
+  private def login(host: String, username: String, password: String, deviceId: DeviceId): Result[Json] = {
     EitherT
       .fromEither[Task] {
         Uri.fromString(host).leftMap[AppException](AppException.InvalidArgument("Could not parse provided host", _))

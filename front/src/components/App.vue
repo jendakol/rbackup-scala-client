@@ -48,8 +48,11 @@
             }, 100);
         },
         methods: {
-            ajax(name, data) {
-                return axios.post("http://" + this.hostUrl + "/ajax-api", {name: name, data: data}, {timeout: 5000})
+            ajax(name, data, timeout) {
+                return axios.post("http://" + this.hostUrl + "/ajax-api", {
+                    name: name,
+                    data: data
+                }, {timeout: timeout === undefined ? 5000 : timeout})
                     .then(t => {
                         return t.data;
                     }).catch(err => {
@@ -59,7 +62,7 @@
                     })
             }, asyncActionWithNotification(actionName, data, initialText, responseToPromise) {
                 this.$snotify.async(initialText, () => new Promise((resolve, reject) => {
-                    this.ajax(actionName, data).then(resp => {
+                    this.ajax(actionName, data, 60000).then(resp => {
                         responseToPromise(resp)
                             .then(text => {
                                 resolve({

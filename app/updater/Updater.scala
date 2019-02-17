@@ -9,6 +9,7 @@ import com.typesafe.scalalogging.StrictLogging
 import javax.inject.{Inject, Named, Singleton}
 import lib.App._
 import lib.AppException.UpdateException
+import lib.settings.Settings
 import lib.{App, AppVersion, DeviceId}
 import monix.eval.Task
 import monix.execution.{Cancelable, Scheduler}
@@ -21,8 +22,8 @@ import scala.util.control.NonFatal
 @Singleton
 class Updater @Inject()(connector: GithubConnector,
                         serviceUpdater: ServiceUpdaterExecutor,
+                        settings: Settings,
                         @ConfigProperty("environment") env: String,
-                        deviceId: DeviceId,
                         @Named("updaterCheckPeriod") checkPeriod: FiniteDuration)(implicit scheduler: Scheduler)
     extends StrictLogging {
   private val updateRunning = new AtomicBoolean(false)
@@ -75,30 +76,32 @@ class Updater @Inject()(connector: GithubConnector,
   }
 
   private def updateApp(release: Release): Result[Unit] = {
-    // TODO setting
+    // TODO setting (if it should be updated)
 
     logger.info(s"Downloading update file for version ${release.tagName}")
 
-    downloadUpdate(release).map { file =>
-      val dirWithUpdate = file.unzipTo(File(s"update-${release.tagName}"))
-      // the data are in subfolder, move them up
-      dirWithUpdate.children.next().children.foreach { sub =>
-        logger.trace(s"Moving $sub to $dirWithUpdate")
-        sub.moveToDirectory(dirWithUpdate)
+    settings.session.map(_.map(_.deviceId).getOrElse(DeviceId("not-logged-in"))).flatMap { deviceId =>
+      downloadUpdate(release).map { file =>
+        val dirWithUpdate = file.unzipTo(File(s"update-${release.tagName}"))
+        // the data are in subfolder, move them up
+        dirWithUpdate.children.next().children.foreach { sub =>
+          logger.trace(s"Moving $sub to $dirWithUpdate")
+          sub.moveToDirectory(dirWithUpdate)
+        }
+
+        file.delete(true)
+        logger.debug(s"Updater unzipped the update to $dirWithUpdate")
+
+        // TODO don't do it if task is running
+
+        val newVersion = release.appVersion.getOrElse {
+          AppVersion(0, 0, 0)
+        }
+
+        logger.info(s"Starting the update from ${App.version} to $newVersion")
+
+        serviceUpdater.executeUpdate(App.version, newVersion, env, deviceId, dirWithUpdate)
       }
-
-      file.delete(true)
-      logger.debug(s"Updater unzipped the update to $dirWithUpdate")
-
-      // TODO don't do it if task is running
-
-      val newVersion = release.appVersion.getOrElse {
-        AppVersion(0, 0, 0)
-      }
-
-      logger.info(s"Starting the update from ${App.version} to $newVersion")
-
-      serviceUpdater.executeUpdate(App.version, newVersion, env, deviceId, dirWithUpdate)
     }
   }
 

@@ -23,7 +23,8 @@ object CirceImplicits {
   implicit val e3: Encoder[ZonedDateTime] = Encoder.encodeString.contramap(_.toLocalDateTime.toString)
   implicit val e4: Encoder[Sha256] = Encoder.encodeString.contramap(_.toString)
   implicit val e5: Encoder[Uri] = Encoder.encodeString.contramap(_.toString)
-  implicit val e6: Encoder[Duration] = Encoder.encodeLong.contramap(_.toHours)
+  implicit val e6: Encoder[DeviceId] = Encoder.encodeString.contramap(_.value)
   implicit val e7: Encoder[AppVersion] = Encoder.encodeString.contramap(_.toString)
+  implicit val e8: Encoder[Duration] = Encoder.encodeLong.contramap(_.toHours)
 
 }

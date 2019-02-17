@@ -17,6 +17,8 @@
                                                           v-model="loginForm.username"></v-text-field>
                                             <v-text-field prepend-icon="lock" name="password" type="password"
                                                           v-model="loginForm.password"></v-text-field>
+                                            <v-text-field prepend-icon="computer" name="deviceId" type="text"
+                                                          v-model="loginForm.deviceId"></v-text-field>
 
                                             <v-card-actions>
                                                 <v-spacer></v-spacer>
@@ -65,7 +67,8 @@
                 loginForm: {
                     host: null,
                     username: null,
-                    password: null
+                    password: null,
+                    deviceId: null
                 },
                 registerForm: {
                     host: null,
@@ -102,7 +105,8 @@
                 this.asyncActionWithNotification("login", {
                         host: this.loginForm.host,
                         username: this.loginForm.username,
-                        password: this.loginForm.password
+                        password: this.loginForm.password,
+                        deviceId: this.loginForm.deviceId
                     }, "Logging in", (resp) => new Promise((success, error) => {
                         this.formsDisabled = false;
 

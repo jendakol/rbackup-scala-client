@@ -208,7 +208,7 @@ object App extends Constants {
   }
 }
 
-case class ServerSession(rootUri: Uri, sessionId: String, serverVersion: AppVersion)
+case class ServerSession(rootUri: Uri, deviceId: DeviceId, sessionId: String, serverVersion: AppVersion)
 
 case class DeviceId(value: String) {
   override def toString: String = value

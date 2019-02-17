@@ -1,6 +1,7 @@
 package lib.commands
 
 import better.files.File
+import cats.syntax.flatMap._
 import com.typesafe.scalalogging.StrictLogging
 import controllers._
 import io.circe.Json
@@ -10,6 +11,7 @@ import javax.inject.Inject
 import lib.App._
 import lib.AppException.{InvalidArgument, LoginRequired}
 import lib._
+import lib.db.FilesDao
 import lib.server.CloudFilesRegistry
 import lib.server.serverapi._
 import lib.settings.Settings
@@ -19,6 +21,7 @@ class FileCommandExecutor @Inject()(wsApiController: WsApiController,
                                     tasksManager: TasksManager,
                                     filesHandler: FilesHandler,
                                     filesRegistry: CloudFilesRegistry,
+                                    filesDao: FilesDao,
                                     settings: Settings)
     extends StrictLogging {
   def execute(command: FileCommand): Result[Json] = command match {
@@ -29,7 +32,7 @@ class FileCommandExecutor @Inject()(wsApiController: WsApiController,
       withSession { implicit session =>
         val file = File(path)
 
-        // TODO check file exists
+        // TODO check file exists, display warning
 
         uploadManually(file)
       }
@@ -71,6 +74,20 @@ class FileCommandExecutor @Inject()(wsApiController: WsApiController,
           JsonSuccess
         }
       }
+
+    case RemoveAllFilesInDir(path) =>
+      App.leaveBreadcrumb("Removing whole dir", Map("path" -> path))
+
+      withSession { implicit session =>
+        for {
+          files <- filesDao.listAll(path)
+          _ <- files.map { f =>
+            filesHandler.removeFile(f.remoteFile) >> filesRegistry.removeFile(f.remoteFile)
+          }.inparallel
+        } yield {
+          JsonSuccess
+        }
+      }
   }
 
   private def uploadManually(file: File)(implicit ss: ServerSession): Result[Json] = {
@@ -107,7 +124,7 @@ class FileCommandExecutor @Inject()(wsApiController: WsApiController,
       .start(runningTask) {
         for {
           results <- filesHandler.upload(file)
-//          _ <- filesRegistry.reportBackedUpFilesList // TODO report uploaded file - is it really needed?
+          //          _ <- filesRegistry.reportBackedUpFilesList // TODO report uploaded file - is it really needed?
           _ <- reportResult(results)
         } yield ()
       }

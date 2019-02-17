@@ -66,12 +66,12 @@ class CloudConnector(httpClient: Client[Task], filesHttpClient: Client[Task], ch
           json.hcursor
             .get[String]("session_id")
             .toResult[String]
-            .map(sid => LoginResponse.SessionCreated(ServerSession(rootUri, sid, status.version)))
+            .map(sid => LoginResponse.SessionCreated(ServerSession(rootUri, deviceId, sid, status.version)))
         case ServerResponse(Status.Ok, Some(json)) =>
           json.hcursor
             .get[String]("session_id")
             .toResult[String]
-            .map(sid => LoginResponse.SessionRecovered(ServerSession(rootUri, sid, status.version)))
+            .map(sid => LoginResponse.SessionRecovered(ServerSession(rootUri, deviceId, sid, status.version)))
         case ServerResponse(Status.Unauthorized, _) =>
           pureResult(LoginResponse.Failed)
       }

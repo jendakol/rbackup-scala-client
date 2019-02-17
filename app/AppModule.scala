@@ -1,6 +1,8 @@
 import java.io.IOException
+import java.util.UUID
 import java.util.concurrent.Executors
 
+import better.files.File
 import cats.effect.Effect
 import com.avast.metrics.scalaapi.Monitor
 import com.google.inject.TypeLiteral
@@ -44,7 +46,7 @@ class AppModule(environment: Environment, configuration: Configuration)
         sentry.setRelease(App.versionStr)
         sentry.addTag("app", "client")
         sentry.setEnvironment(config.getString("environment"))
-        sentry.setServerName(config.getString("deviceId"))
+        sentry.setServerName(appUUID.toString)
         sentry.setDist(if (SystemUtils.IS_OS_WINDOWS) "win" else "linux")
       } else {
         logger.info("Sentry NOT enabled")
@@ -97,12 +99,9 @@ class AppModule(environment: Environment, configuration: Configuration)
 
     bind[AllowedWsApiOrigins].toInstance(AllowedWsApiOrigins(config.getStringList("allowedWsApiOrigins").asScala))
 
-    val deviceId = DeviceId(config.getString("deviceId"))
-    bind[DeviceId].toInstance(deviceId)
-
     val cloudConnector = CloudConnector.fromConfig(config.getConfig("cloudConnector"), blockingScheduler)
     val settings = new Settings(settingsDao)
-    val stateManager = new StateManager(deviceId, cloudConnector, filesDao, settings)
+    val stateManager = new StateManager(cloudConnector, filesDao, settings)
 
     bind[CloudConnector].toInstance(cloudConnector)
     bind[Settings].toInstance(settings)
@@ -168,5 +167,17 @@ class AppModule(environment: Environment, configuration: Configuration)
     } else new LinuxServiceUpdaterExecutor
 
     bind[ServiceUpdaterExecutor].toInstance(updater)
+  }
+
+  private def appUUID: UUID = {
+    val f = File("uuid")
+    if (f.exists) {
+      UUID.fromString(f.bufferedReader.apply(_.readLine()))
+    } else {
+      val uuid = UUID.randomUUID()
+      f.write(uuid.toString)
+      logger.info(s"Generating app UUID: $uuid")
+      uuid
+    }
   }
 }

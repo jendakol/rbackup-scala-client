@@ -27,7 +27,10 @@ class BackupSetExecutorTest extends TestWithDB with MockitoSugar with ScalaFutur
 
   private implicit val pat: PatienceConfig = PatienceConfig(timeout = Span(5, Seconds))
 
-  private implicit val ss: ServerSession = ServerSession(Uri.unsafeFromString("http://localhost"), "sesssionId", AppVersion(0, 1, 0))
+  private implicit val ss: ServerSession = ServerSession(rootUri = Uri.unsafeFromString("http://localhost"),
+                                                         deviceId = DeviceId("tests"),
+                                                         sessionId = "sesssionId",
+                                                         serverVersion = AppVersion(0, 1, 0))
   private val blockingScheduler = Scheduler.io()
   private val dao = new BackupSetsDao(blockingScheduler)
 

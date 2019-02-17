@@ -33,7 +33,8 @@
         </vue-context>
         <vue-context ref="dirMenu">
             <ul>
-                <li @click="alert('???')">Restore all files in this directory to last version</li>
+                <li @click="alert('Not implemented yet')">Restore all files in this directory to last version</li>
+                <li @click="removeAllInDir(rightClicked)">Remove all backups</li>
             </ul>
         </vue-context>
     </div>
@@ -140,6 +141,26 @@
                                 error("Could not remove file")
                             } else {
                                 error("Could not remove file: " + resp.error)
+                            }
+                        }));
+                    }
+                });
+            },
+            removeAllInDir(dir) {
+                let path = dir.value;
+
+                this.$confirm("Do you really want to delete all backups of files in " + path + "?", {title: 'Warning'}).then(res => {
+                    if (res) {
+                        this.asyncActionWithNotification("removeAllInDir", {
+                            path: path
+                        }, "Removing all files in dir", (resp) => new Promise((success, error) => {
+                            if (resp.success === true) {
+                                // TODO hide the dir and all the parents
+                                success("All backups of files in " + path + " were completely removed!");
+                            } else if (resp.success === false) {
+                                error("Could not remove backups from dir")
+                            } else {
+                                error("Could not remove backups from dir: " + resp.error)
                             }
                         }));
                     }
