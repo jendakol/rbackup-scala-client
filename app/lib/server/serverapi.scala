@@ -10,7 +10,7 @@ import utils.Sha256
 // https://jendakol.github.io/rbackup/server.html
 object serverapi {
 
-  case class RemoteFile(id: Long, deviceId: String, originalName: String, versions: Vector[RemoteFileVersion])
+  case class RemoteFile(id: Long, deviceId: String, originalName: String, versions: List[RemoteFileVersion])
 
   case class RemoteFileVersion(version: Long, size: Long, hash: Sha256, created: ZonedDateTime, mtime: ZonedDateTime)
 

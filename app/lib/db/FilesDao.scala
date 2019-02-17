@@ -1,6 +1,6 @@
 package lib.db
 
-import java.time.ZonedDateTime
+import java.time.{ZoneId, ZonedDateTime}
 
 import better.files.File
 import cats.data
@@ -10,10 +10,10 @@ import io.circe.generic.extras.auto._
 import io.circe.parser.decode
 import io.circe.syntax._
 import lib.App.{Result, _}
-import lib.AppException
 import lib.AppException.DbException
 import lib.db.FilesDao._
 import lib.server.serverapi.{RemoteFile, RemoteFileVersion}
+import lib.{App, AppException}
 import monix.eval.Task
 import monix.execution.Scheduler
 import scalikejdbc.{DB, _}
@@ -41,18 +41,20 @@ class FilesDao(blockingScheduler: Scheduler) extends StrictLogging {
       }
   }
 
-  def listAll: Result[List[DbFile]] = EitherT {
+  def listAll(prefix: String = ""): Result[List[DbFile]] = EitherT {
     Task {
-      logger.debug(s"Trying to list all files from DB")
+      App.leaveBreadcrumb("Listing files", Map("prefix" -> prefix))
+
+      logger.debug(s"Trying to list all files from DB (prefix '$prefix')")
 
       Right {
         DB.readOnly { implicit session =>
-          sql"SELECT * FROM files".map(DbFile.apply).list().apply()
+          sql"SELECT * FROM files where path like ${s"${prefix.replace("\\", "\\\\")}%"} order by path asc".map(DbFile.apply).list().apply()
         }
       }: Either[AppException, List[DbFile]]
     }.executeOnScheduler(blockingScheduler)
       .onErrorRecover {
-        case NonFatal(e) => Left(DbException("Listing files", e))
+        case NonFatal(e) => Left(DbException(s"Listing files with prefix '$prefix'", e))
       }
   }
 
@@ -185,7 +187,7 @@ object DbFile {
 
     DbFile(
       path = string("path"),
-      lastModified = zonedDateTime("last_modified"),
+      lastModified = zonedDateTime("last_modified").withZoneSameInstant(ZoneId.of("UTC+0")),
       size = long("size"),
       remoteFile = decode[RemoteFile](string("remote_file")) match {
         case Right(v) => v

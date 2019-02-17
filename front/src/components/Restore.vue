@@ -57,16 +57,15 @@
         },
         created() {
             this.registerWsListener(this.receiveWs);
-            this.loadData(null, (items) => {
-                this.fileTreeData = items;
-            })
         },
         data() {
             return {
                 fileTreeData: [],
                 loaded: false,
                 loadData: (oriNode, resolve) => {
-                    this.ajax("backedUpFileList", {})
+                    let path = oriNode.data.value;
+
+                    this.ajax("backedUpFileList", {prefix: path})
                         .then(response => {
                             resolve(response)
                         })
@@ -148,10 +147,18 @@
             },
             receiveWs(message) {
                 switch (message.type) {
-                    case "backedUpFilesUpdate": {
+                    case "removedFileVersion": {
+                        let filePath = message.data.path;
+                        this.findTreeNode(filePath).children = message.data.versions;
+                    }
+                        break;
+
+                    case "removedFile": {
+                        let parentPath = message.data.parent;
+
                         let opened = JSPath.apply('..{.opened === true}', this.fileTreeData);
 
-                        this.fileTreeData = message.data;
+                        this.findTreeNode(parentPath).children = message.data.files;
 
                         opened.forEach(opened => {
                             JSPath.apply('..{.value === "' + opened.value + '"}', this.fileTreeData)[0].opened = true;
@@ -160,6 +167,9 @@
                         break;
                 }
             },
+            findTreeNode(path) {
+                return JSPath.apply('..{.value === "' + path.replace(/\\/g, "\\\\") + '"}', this.fileTreeData)[0]
+            }
         }
     }
 </script>

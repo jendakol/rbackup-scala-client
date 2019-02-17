@@ -79,13 +79,16 @@ class CloudConnector(httpClient: Client[Task], filesHttpClient: Client[Task], ch
   }
 
   def upload(file: File)(callback: (Long, Double, Boolean) => Unit)(implicit session: ServerSession): Result[UploadResponse] = {
-    logger.debug(s"Uploading $file")
-    App.leaveBreadcrumb("Uploading", Map("file" -> file))
+    val mtime = Files.getLastModifiedTime(file.path)
+
+    logger.debug(s"Uploading $file, mtime $mtime")
+
+    App.leaveBreadcrumb("Uploading", Map("file" -> file, "mtime" -> mtime.toMillis))
 
     val params = Map(
       "file_path" -> file.path.toAbsolutePath.toString,
       "size" -> file.size.toString,
-      "mtime" -> Files.getLastModifiedTime(file.path).toMillis.toString
+      "mtime" -> mtime.toMillis.toString
     )
 
     stream(Method.PUT, "upload", file, callback, params) {

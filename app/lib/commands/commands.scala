@@ -26,7 +26,7 @@ object Command {
     case "download" => data.flatMap(_.as[DownloadCommand].toOption)
     case "ping" => Some(PingCommand)
     case "status" => Some(StatusCommand)
-    case "backedUpFileList" => Some(BackedUpFileListCommand)
+    case "backedUpFileList" => data.flatMap(_.as[BackedUpFileListCommand].toOption)
     case "dirList" => data.flatMap(_.as[DirListCommand].toOption)
     case "register" => data.flatMap(_.as[RegisterCommand].toOption)
     case "login" => data.flatMap(_.as[LoginCommand].toOption)
@@ -41,7 +41,7 @@ object Command {
 
 sealed trait BackupCommand extends Command
 
-case object BackedUpFileListCommand extends BackupCommand
+case class BackedUpFileListCommand(prefix: Option[String]) extends BackupCommand
 
 case class BackupSetFilesUpdateCommand(id: Long, paths: Seq[String]) extends BackupCommand
 

@@ -12,8 +12,8 @@ import io.circe.syntax._
 import javax.inject.{Inject, Singleton}
 import lib.App._
 import lib.AppException.{InvalidArgument, LoginRequired}
-import lib.client.clientapi.FileTree
 import lib.db.{BackupSet, BackupSetsDao, FilesDao}
+import lib.server.CloudFilesRegistry
 import lib.settings.Settings
 import lib.{App, AppException, ServerSession, _}
 import monix.eval.Task
@@ -22,15 +22,16 @@ import utils.CirceImplicits._
 @Singleton
 class BackupCommandExecutor @Inject()(bsDao: BackupSetsDao,
                                       filesDao: FilesDao,
+                                      filesRegistry: CloudFilesRegistry,
                                       backupSetsExecutor: BackupSetsExecutor,
                                       wsApiController: WsApiController,
                                       settings: Settings)
     extends StrictLogging {
   def execute(command: BackupCommand): Result[Json] = command match {
 
-    case BackedUpFileListCommand =>
+    case BackedUpFileListCommand(prefix) =>
       App.leaveBreadcrumb("Getting backed-up files list")
-      backedUpList
+      backedUpList(prefix)
 
     case BackupSetsListCommand =>
       App.leaveBreadcrumb("Listing backup sets")
@@ -109,32 +110,21 @@ class BackupCommandExecutor @Inject()(bsDao: BackupSetsDao,
     }
   }
 
-  private def backedUpList: EitherT[Task, AppException, Json] = {
-    filesDao.listAll.map { files =>
-      val fileTrees = FileTree.fromRemoteFiles(files.map(_.remoteFile))
+  private def backedUpList(prefix: Option[String]): EitherT[Task, AppException, Json] = {
+    filesRegistry.listFiles(prefix).map { nodes =>
+      App.leaveBreadcrumb("Getting backed-up list", Map("prefix" -> prefix.getOrElse("")))
 
-      logger.debug(s"Backed-up file trees: $fileTrees")
-
-      val nonEmptyTrees = fileTrees.filterNot(_.isEmpty)
-
-      if (nonEmptyTrees.nonEmpty) {
-        logger.trace {
-          val allFiles = nonEmptyTrees
-            .collect {
-              case ft @ FileTree(_, Some(_)) => ft.allFiles
-              case _ => None
-            }
-            .flatten
-            .flatMap(_.toList)
-
-          s"Returning list of ${allFiles.length} backed-up files"
-        }
-
-        nonEmptyTrees.map(_.toJson).asJson
+      if (nodes.nonEmpty) {
+        nodes.map(_.toJson).asJson
       } else {
-        logger.debug("Returning empty list of backed-up files")
-        parseUnsafe {
-          s"""[{"icon": "fas fa-info-circle", "isLeaf": true, "opened": false, "value": "_", "text": "No backed-up files yet", "isFile": false, "isVersion": false, "isDir": false}]"""
+        if (prefix.isEmpty) {
+          logger.debug("Returning empty list of backed-up files")
+          parseUnsafe {
+            s"""[{"icon": "fas fa-info-circle", "isLeaf": true, "opened": false, "value": "_", "text": "No backed-up files yet", "isFile": false, "isVersion": false, "isDir": false}]"""
+          }
+        } else {
+          logger.error("Didn't find any files with non-empty prefix, returning empty JSON")
+          parseUnsafe(s"[]")
         }
       }
     }
